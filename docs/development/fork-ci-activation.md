@@ -9,7 +9,10 @@ It has no secrets, cache, artifacts, publishing or external dispatch.
 
 Actions is still disabled. The API returned an empty registered-workflow list,
 and disabling `build.yml` by filename returned 404 despite the tracked YAML.
-No global activation was attempted.
+GitHub also returned 409 when asked to stage an action allowlist with Actions
+disabled: `allowed_actions` requires `enabled: true`. No global activation was
+attempted. Default workflow permissions are already read-only, and Actions
+cannot approve PR reviews.
 
 ## Safe activation sequence
 
@@ -20,10 +23,11 @@ No global activation was attempted.
    guard-only baseline branch, and retarget the authentication PR to it with
    identical guards on its head. Verify that the comparison remains focused on
    authentication and that the original baseline code is unchanged.
-3. Restrict allowed actions to the checkout SHA used here, keep default workflow
-   permissions read-only, and disallow Actions approving PRs.
-4. Only after every active event source is guarded, enable the repository,
-   enumerate workflows and manually disable every inherited workflow. Read back
+3. Keep default workflow permissions read-only and Actions PR approval disabled.
+4. Only after every active event source is guarded, enable the repository with
+   `allowed_actions: selected` and SHA pinning required, then set its allowlist
+   to exactly the checkout SHA used here. Enumerate workflows and manually
+   disable every inherited workflow. Read back
    the entire inventory. The source guards prevent inherited jobs from running
    during registration, including jobs using `always()`.
 5. Confirm only the fork check is active, trigger normal PR synchronization,
