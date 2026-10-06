@@ -65,8 +65,11 @@ It uses a pinned checkout action without persisted credentials, and has no
 secrets, cache, artifacts, publishing or dispatch steps. It does not test native
 WebAuthn, BLE, V8 lifetime or storage shutdown.
 
-Actions is currently disabled for the fork. GitHub returned no registered
-workflows, and disabling an inherited workflow by filename returned 404. The
-small job is staged on this PR head, but it has not run. Enablement requires a
-separate verified plan that keeps every inherited workflow disabled before any
-triggering event; no protection bypass or merge is part of this checkpoint.
+The CI-only guard PR was approved and merged through the fork's protected
+`main`. Every active PR base and head now guards inherited jobs. The Electron 43
+comparison uses `baseline/electron-v43.7.0-fork-ci`; the original pinned baseline
+remains unchanged. Repository Actions settings require SHA pinning and allow
+only the exact checkout revision. All 52 registered inherited workflows are
+manually disabled; this is the only active workflow. Default token permissions
+are read-only and Actions cannot approve PR reviews. These settings do not
+establish a native test result; check the PR's run for the tested head.
