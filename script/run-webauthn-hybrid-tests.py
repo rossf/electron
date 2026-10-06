@@ -43,7 +43,7 @@ def invoke(command, environment, timeout):
 def main():
     no_core()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=["all", "state", "native"], default="all")
+    parser.add_argument("--suite", choices=["all", "state", "native", "creation"], default="all")
     parser.add_argument("--out-dir", type=Path, help="Explicit Electron build output directory")
     parser.add_argument("--native-binary", type=Path, help="Optional separate mock executable")
     parser.add_argument("--cxx", default="c++", help="Compiler for the dependency-free state test")
@@ -76,10 +76,11 @@ def main():
                             "-o", str(binary)], check=True)
             run_case("state", [binary])
 
-        if args.suite in ("all", "native"):
+        if args.suite in ("all", "native", "creation"):
             binary = (args.native_binary or output / "electron_hybrid_browser_owned_tests").resolve()
             if binary.name not in ("electron_hybrid_browser_owned_tests", "electron_hybrid_browser_owned_storage_tests"):
                 parser.error("Native tests require the explicitly named mock executable")
+        if args.suite in ("all", "native"):
             for enabled in (True, False):
                 name = "native-enabled" if enabled else "native-disabled"
                 result_file = directory / (name + ".json")
@@ -97,6 +98,29 @@ def main():
                         or result.get("ok") is not True or not result.get("tests")
                         or not all(test.get("ok") is True for test in result["tests"])):
                     raise RuntimeError(f"{name} did not pass every case in this invocation")
+                results[-1]["cases"] = len(result["tests"])
+
+        if args.suite in ("all", "creation"):
+            for mode in ("enabled", "creation-disabled", "backend-disabled", "disabled", "shutdown"):
+                name = "creation-" + mode
+                result_file = directory / (name + ".json")
+                run_id = str(uuid.uuid4())
+                run_case(name, [binary, FIXTURES / "creation.cjs"], {
+                    "PASSKEY_CREATION_TEST_MODE": mode,
+                    "PASSKEY_BROWSER_TEST_RUN_ID": run_id,
+                    "HYBRID_TEST_PROFILE": str(directory / name),
+                    "HYBRID_TEST_RESULT": str(result_file),
+                    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/nonexistent-passkey-probe",
+                    "DBUS_SYSTEM_BUS_ADDRESS": "unix:path=/nonexistent-passkey-probe",
+                }, timeout=180)
+                result = json.loads(result_file.read_text())
+                if (result.get("runId") != run_id or result.get("completed") is not True
+                        or result.get("ok") is not True or not result.get("tests")
+                        or not all(test.get("ok") is True for test in result["tests"])):
+                    raise RuntimeError(f"{name} did not pass every case in this invocation")
+                if mode == "shutdown" and (result.get("shutdownRequested") is not True
+                        or result.get("shutdownTeardownVerified") is not True):
+                    raise RuntimeError("Creation app quit did not verify native teardown")
                 results[-1]["cases"] = len(result["tests"])
 
     print(json.dumps({"ok": True, "syntheticOnly": True, "results": results}, indent=2))

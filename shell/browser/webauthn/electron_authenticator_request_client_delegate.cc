@@ -172,6 +172,7 @@ network::mojom::NetworkContext* HybridNetworkContext(
 // one.
 void NotifyHybridEnded(base::WeakPtr<ElectronBrowserContext> browser_context,
                        std::string request_id,
+                       device::FidoRequestType request_type,
                        HybridRequestHandler owner) {
   if (!browser_context || browser_context->ShutdownStarted() || !owner)
     return;
@@ -185,10 +186,15 @@ void NotifyHybridEnded(base::WeakPtr<ElectronBrowserContext> browser_context,
   v8::Local<v8::Object> wrapper;
   if (!session->Get()->GetWrapper(isolate).ToLocal(&wrapper))
     return;
-  auto details = gin::DataObjectBuilder(isolate)
-                     .Set("requestId", request_id)
-                     .Set("state", "ended")
-                     .Build();
+  auto details =
+      gin::DataObjectBuilder(isolate)
+          .Set("requestId", request_id)
+          .Set("requestType",
+               request_type == device::FidoRequestType::kMakeCredential
+                   ? std::string("create")
+                   : std::string("get"))
+          .Set("state", "ended")
+          .Build();
   v8::TryCatch try_catch(isolate);
   owner.Run(details, v8::Undefined(isolate));
   // Teardown is already complete. Contain ordinary UI errors without exposing
@@ -252,10 +258,15 @@ void ElectronAuthenticatorRequestClientDelegate::ConfigureDiscoveries(
     return;
   const bool enabled = base::CommandLine::ForCurrentProcess()->HasSwitch(
       "enable-electron-webauthn-hybrid");
-  const bool modal_get =
+  const bool creation_enabled =
+      base::CommandLine::ForCurrentProcess()->HasSwitch(
+          "enable-electron-webauthn-hybrid-creation");
+  const bool modal_request =
       presentation_ == UIPresentation::kModal &&
       request_source == RequestSource::kWebAuthentication &&
-      request_type == device::FidoRequestType::kGetAssertion &&
+      (request_type == device::FidoRequestType::kGetAssertion ||
+       (creation_enabled &&
+        request_type == device::FidoRequestType::kMakeCredential)) &&
       !cmtg_key_requested;
   // Native snapshot only: never invoke JavaScript while the outer Chromium
   // caller is still constructing its request handler.
@@ -263,7 +274,7 @@ void ElectronAuthenticatorRequestClientDelegate::ConfigureDiscoveries(
   if (!owner)
     return;
   if (!hybrid_state_.Configure(
-          enabled, modal_get,
+          enabled, modal_request,
           IsVirtualEnvironmentEnabled() ||
               (discovery_factory && discovery_factory->IsTestOverride()),
           discovery_factory != nullptr)) {
@@ -271,6 +282,7 @@ void ElectronAuthenticatorRequestClientDelegate::ConfigureDiscoveries(
   }
 
   hybrid_handler_ = std::move(owner);
+  hybrid_request_type_ = request_type;
 
   // This is a trusted Chromium callback, after origin/RP validation. Never
   // accept an origin, RP ID, challenge, UP/UV flag, or assertion from app JS.
@@ -306,6 +318,17 @@ void ElectronAuthenticatorRequestClientDelegate::
         const device::FidoRequestHandlerBase::TransportAvailabilityInfo& data) {
   if (!hybrid_state_.active())
     return;
+  // ConfigureDiscoveries is called before Chromium supplies the attachment
+  // constraint. Its request handler filters platform-only transports before
+  // discovery. Drop the unused owner without presenting or cancelling that
+  // independent platform ceremony.
+  if (hybrid_request_type_ == device::FidoRequestType::kMakeCredential &&
+      data.request_is_internal_only) {
+    hybrid_state_.Close();
+    hybrid_handler_.Reset();
+    hybrid_qr_.clear();
+    return;
+  }
   hybrid_transport_present_ = data.available_transports.contains(
       device::FidoTransportProtocol::kHybrid);
   if (!hybrid_transport_present_)
@@ -342,6 +365,10 @@ void ElectronAuthenticatorRequestClientDelegate::EmitHybridRequest(
   auto details =
       gin::DataObjectBuilder(isolate)
           .Set("requestId", hybrid_request_id_)
+          .Set("requestType",
+               hybrid_request_type_ == device::FidoRequestType::kMakeCredential
+                   ? std::string("create")
+                   : std::string("get"))
           .Set("origin", hybrid_origin_)
           .Set("relyingPartyId", relying_party_id_)
           .Set("frame", rfh)
@@ -385,9 +412,9 @@ void ElectronAuthenticatorRequestClientDelegate::FinishHybridRequest() {
   hybrid_qr_.clear();
   if (hybrid_state_.TakeCloseNotification()) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE,
-        base::BindOnce(&NotifyHybridEnded, hybrid_browser_context_,
-                       hybrid_request_id_, std::move(hybrid_handler_)));
+        FROM_HERE, base::BindOnce(&NotifyHybridEnded, hybrid_browser_context_,
+                                  hybrid_request_id_, hybrid_request_type_,
+                                  std::move(hybrid_handler_)));
   }
 }
 

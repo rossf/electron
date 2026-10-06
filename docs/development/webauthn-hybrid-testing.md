@@ -24,7 +24,8 @@ python3 electron/script/run-webauthn-hybrid-tests.py --out-dir out/Testing
 ```
 
 The runner compiles the dependency-free state test with a local C++17 compiler,
-then executes enabled and disabled native suites. A usable Linux
+then executes enabled and disabled authentication suites and the creation modes
+described below. A usable Linux
 display is required for Electron; an existing Xvfb session is also suitable.
 The mock binding is linked only into the separately named test executable.
 The ordinary `electron` target contains no browser-owned mock binding.
@@ -35,7 +36,8 @@ For the small state test alone, from the Electron repository root:
 python3 script/run-webauthn-hybrid-tests.py --suite state
 ```
 
-`--suite native` selects the native checks. `--native-binary` accepts an explicit
+`--suite native` selects authentication-only native checks.
+`--suite creation` selects the creation follow-up. `--native-binary` accepts an explicit
 executable path when validating an existing build. The legacy cached mock name
 `electron_hybrid_browser_owned_storage_tests` is also accepted. A passing run
 identifies the tested executable, not a newly compiled checkout.
@@ -46,7 +48,8 @@ The native suite covers synchronous/duplicate/stale cancellation, BLE
 unavailability and recovery, handler errors and replacement, navigation/window
 and iframe teardown, separate Session ownership, Permissions Policy, RP rejection,
 page abort, concurrent requests, repeated synthetic assertions, and USB fallback.
-An installed hybrid handler must not be called by `navigator.credentials.create()`;
+With the creation switch absent, an installed hybrid handler must not be called
+by `navigator.credentials.create()`;
 a successful synthetic USB registration supplies the assertion credential. It checks signed
 challenge/origin/RP/UP/UV data using a fresh virtual credential. It never saves a
 QR payload, credential or private key. Result files exist only in the temporary
@@ -95,3 +98,41 @@ were retained, core dumps disabled, and temporary profiles removed. No real
 account, Bluetooth hardware, caBLE tunnel or live relying party was tested.
 This does not establish non-Linux compile compatibility, every resolver/GC
 shutdown path, absence of races, or production readiness.
+
+## Creation follow-up
+
+Use this creation branch with the same pinned dependency checkout and testing
+configuration. Build both `electron` and `electron:electron_hybrid_browser_owned_tests`
+as above, then from Chromium `src` run:
+
+```sh
+python3 electron/script/run-webauthn-hybrid-tests.py --suite creation --out-dir out/Testing
+```
+
+The mock factory supplies a virtual CTAP2 device over a synthetic hybrid transport.
+It never starts a Bluetooth scan, tunnel or real authenticator. The tests check
+that the native QR encodes creation or authentication without logging the payload.
+Successful creation is checked against challenge, origin, RP hash, UP/UV,
+credential ID and public key. A subsequent assertion is signature-verified using
+that newly created virtual credential.
+
+Coverage includes cross-platform and unspecified attachment; required, preferred
+and discouraged resident key/UV; algorithm fallback and rejection; exclusion of an
+existing credential; unsupported resident key/UV and failed verification; invalid
+RP and iframe Permissions Policy; opt-in combinations, Session ownership, USB
+fallback and BLE availability/recovery. Platform-only tests check both the absence
+of a hybrid owner and successful independent virtual platform creation. A negative
+platform control has no platform device. Chromium may receive cable configuration
+before the platform constraint arrives; those tests assert no hybrid device or UI.
+
+Lifecycle cases cover synchronous, duplicate and stale cancel handles, handler
+false/Promise/throw, owner replacement, page abort, timeout, navigation, destroyed
+windows, removed iframes and app quit with a pending creation. The shutdown case
+marks its pending synthetic request before app quit; the runner also requires a
+clean process exit. It does not require a terminal callback during app shutdown.
+Each invocation uses fresh temporary profiles, a run identifier and result checks.
+The default suite also reruns the unchanged authentication fixture.
+
+These checks validate native integration and lifecycle behavior, not phone
+interoperability, network transport or RP enrollment. Real registration remains a
+user-controlled test, and no laptop artifact is regenerated for this follow-up.

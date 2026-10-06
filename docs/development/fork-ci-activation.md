@@ -6,10 +6,12 @@ and synthetic browser tests remain separate local validation steps.
 ## Coverage
 
 The candidate workflow runs on this fork's own authentication, storage and CI
-branches targeting `main` or `baseline/electron-v43.7.0-fork-ci`. The explicit
+branches targeting `main`, `baseline/electron-v43.7.0-fork-ci` or the
+authentication base `experimental/linux-phone-passkey-main`. The explicit
 head allowlist contains `experimental/linux-phone-passkey-preservation`,
 `experimental/linux-phone-passkey-main`, `fix/in-memory-storage-shutdown` and
-`docs/fork-ci-active-status`. Events are `opened`, `reopened` and `synchronize`.
+`docs/fork-ci-active-status`. This creation branch additionally permits
+`experimental/linux-phone-passkey-create-main`. Events are `opened`, `reopened` and `synchronize`.
 It checks the exact head against GitHub's resolved merge base:
 
 - Electron's changed-file C++, GN, Python, JavaScript and documentation linters,
@@ -17,6 +19,7 @@ It checks the exact head against GitHub's resolved merge base:
 - API declaration generation, the actual upstream TypeScript smoke compiler and
   documentation TypeScript checks. Authentication heads also compile a small
   positive/negative check for `setWebAuthnHybridHandler` against the generated API.
+  Creation also checks the `requestType` field.
 - The standalone C++ lifetime-policy test, when present on that source head.
 - Chromium patch registry consistency. When the storage shutdown patch is
   present, the complete one-file patch must apply to the source version pinned
@@ -39,8 +42,10 @@ record the harness, source, PR base, merge base and dependency identities.
 Those matrix results belong to the CI candidate PR. They validate the logged
 source commits; they are not checks attached to PR #1 or #2 and do not rerun
 merely because another branch advances. Continuous checks on those PRs require
-the reviewed CI change on their heads and a new qualifying PR event. The CI
-candidate remains a draft until reviewed and explicitly approved for merging.
+the reviewed CI change on their heads and a new qualifying PR event. The expanded CI candidate was merged as PR #4 at
+`265bd09e15d9baf0f07cdddd3254d02ee19a66fb`. Its exact-source checks on PR #1
+and PR #2 are active; merging does not itself rerun those checks. The creation
+branch/base additions are isolated in this follow-up.
 
 The guarded Electron 43 baseline is used for PR #1. The original
 `baseline/electron-v43.7.0-c440db5` reference remains pinned. Do not use that

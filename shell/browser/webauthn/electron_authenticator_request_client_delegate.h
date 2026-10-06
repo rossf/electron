@@ -125,6 +125,8 @@ class ElectronAuthenticatorRequestClientDelegate
   UIPresentation presentation_ = UIPresentation::kDisabled;
   HybridRequestState hybrid_state_;
   HybridRequestHandler hybrid_handler_;
+  device::FidoRequestType hybrid_request_type_ =
+      device::FidoRequestType::kGetAssertion;
   bool hybrid_transport_present_ = false;
   std::string hybrid_request_id_;
   std::string hybrid_origin_;

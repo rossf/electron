@@ -5,7 +5,9 @@
 // Test-only linked binding. Never linked into the production Electron target.
 #include <memory>
 #include <set>
+#include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 #include "base/check.h"
 #include "base/functional/bind.h"
@@ -16,6 +18,7 @@
 #include "content/public/browser/scoped_authenticator_environment_for_testing.h"
 #include "device/bluetooth/bluetooth_adapter_factory.h"
 #include "device/bluetooth/test/mock_bluetooth_adapter.h"
+#include "device/fido/cable/v2_handshake.h"
 #include "device/fido/fido_device_discovery.h"
 #include "device/fido/fido_discovery_factory.h"
 #include "device/fido/virtual_ctap2_device.h"
@@ -35,7 +38,16 @@ struct ProbeState {
   int live = 0;
   int usb_started = 0;
   int hybrid_started = 0;
+  int usb_devices = 0;
+  int hybrid_devices = 0;
+  int platform_devices = 0;
   bool hybrid_configured = false;
+  bool hybrid_device = false;
+  bool platform_device = false;
+  bool resident_keys = true;
+  bool uv_support = true;
+  bool uv_success = true;
+  std::string request_type;
   bool press = true;
   bool powered = true;
   std::set<Adapter::Observer*> observers;
@@ -48,30 +60,38 @@ class Discovery final : public device::FidoDeviceDiscovery {
   Discovery(Transport transport, std::shared_ptr<ProbeState> state)
       : FidoDeviceDiscovery(transport),
         state_(std::move(state)),
-        usb_(transport == Transport::kUsbHumanInterfaceDevice) {
+        transport_(transport) {
     ++state_->live;
   }
   ~Discovery() override { --state_->live; }
 
  private:
   void StartInternal() override {
-    if (usb_) {
+    if (transport_ == state_->device_state->transport) {
       device::VirtualCtap2Device::Config config;
-      config.internal_uv_support = true;
-      config.resident_key_support = true;
-      config.user_verification_succeeds = true;
+      config.is_platform_authenticator = state_->platform_device;
+      config.internal_uv_support = state_->uv_support;
+      config.resident_key_support = state_->resident_keys;
+      config.resident_credential_storage = 64;
+      config.user_verification_succeeds = state_->uv_success;
       AddDevice(std::make_unique<device::VirtualCtap2Device>(
           state_->device_state, config));
+      if (transport_ == Transport::kUsbHumanInterfaceDevice)
+        ++state_->usb_devices;
+      else if (transport_ == Transport::kHybrid)
+        ++state_->hybrid_devices;
+      else
+        ++state_->platform_devices;
     }
-    if (usb_)
+    if (transport_ == Transport::kUsbHumanInterfaceDevice)
       ++state_->usb_started;
-    else
+    else if (transport_ == Transport::kHybrid)
       ++state_->hybrid_started;
     // FidoDeviceDiscovery::Start has already posted this operation.
     NotifyDiscoveryStarted(true);
   }
   std::shared_ptr<ProbeState> state_;
-  bool usb_;
+  Transport transport_;
 };
 
 class Factory final : public device::FidoDiscoveryFactory {
@@ -82,7 +102,8 @@ class Factory final : public device::FidoDiscoveryFactory {
   std::vector<std::unique_ptr<device::FidoDiscoveryBase>> Create(
       Transport transport) override {
     if (transport == Transport::kUsbHumanInterfaceDevice ||
-        (transport == Transport::kHybrid && state_->hybrid_configured)) {
+        (transport == Transport::kHybrid && state_->hybrid_configured) ||
+        (transport == Transport::kInternal && state_->platform_device)) {
       return SingleDiscovery(std::make_unique<Discovery>(transport, state_));
     }
     return {};  // Never call the base factory for any transport.
@@ -92,12 +113,15 @@ class Factory final : public device::FidoDiscoveryFactory {
     return std::nullopt;
   }
   void set_cable_data(
-      device::FidoRequestType,
+      device::FidoRequestType request_type,
       const std::optional<std::array<uint8_t, device::cablev2::kQRKeySize>>&
           key) override {
     CHECK(key.has_value());
     ++state_->configured;
     state_->hybrid_configured = true;
+    state_->request_type =
+        request_type == device::FidoRequestType::kMakeCredential ? "create"
+                                                                 : "get";
     // No retained QR key, network factory invocation, tunnel or Bluetooth scan.
   }
 
@@ -177,19 +201,68 @@ void Install(int process_id, int routing_id, gin::Arguments* args) {
   Current() = std::move(harness);
 }
 
-void Prepare(bool powered, bool press, gin::Arguments* args) {
+bool PrepareProbe(bool powered, bool press, gin::Arguments* args) {
   if (!Current() || Current()->state->live ||
       !Current()->state->observers.empty()) {
     args->ThrowTypeError(
         "Cannot reset while native request owns discovery or adapter "
         "observers");
-    return;
+    return false;
   }
   auto& state = *Current()->state;
   state.configured = state.usb_started = state.hybrid_started = 0;
+  state.usb_devices = state.hybrid_devices = state.platform_devices = 0;
   state.hybrid_configured = false;
+  state.hybrid_device = state.platform_device = false;
+  state.resident_keys = state.uv_support = state.uv_success = true;
+  state.request_type.clear();
+  state.device_state->transport = Transport::kUsbHumanInterfaceDevice;
   state.powered = powered;
   state.press = press;
+  return true;
+}
+
+void Prepare(bool powered, bool press, gin::Arguments* args) {
+  PrepareProbe(powered, press, args);
+}
+
+void PrepareCreation(bool powered,
+                     bool press,
+                     bool hybrid_device,
+                     bool resident_keys,
+                     bool uv_support,
+                     bool uv_success,
+                     gin::Arguments* args) {
+  if (!PrepareProbe(powered, press, args))
+    return;
+  auto& state = *Current()->state;
+  state.hybrid_device = hybrid_device;
+  state.resident_keys = resident_keys;
+  state.uv_support = uv_support;
+  state.uv_success = uv_success;
+  state.device_state->transport =
+      hybrid_device ? Transport::kHybrid : Transport::kUsbHumanInterfaceDevice;
+}
+
+void PreparePlatform(gin::Arguments* args) {
+  if (!PrepareProbe(true, true, args))
+    return;
+  auto& state = *Current()->state;
+  state.platform_device = true;
+  state.device_state->transport = Transport::kInternal;
+}
+
+std::string QrRequestType(const std::string& qr, gin::Arguments* args) {
+  const auto parsed = device::cablev2::qr::Parse(qr);
+  if (!parsed ||
+      !std::holds_alternative<device::FidoRequestType>(parsed->request_type)) {
+    args->ThrowTypeError("Expected a synthetic WebAuthn QR payload");
+    return {};
+  }
+  return std::get<device::FidoRequestType>(parsed->request_type) ==
+                 device::FidoRequestType::kMakeCredential
+             ? "create"
+             : "get";
 }
 
 void SetPowered(bool powered, gin::Arguments* args) {
@@ -215,6 +288,10 @@ v8::Local<v8::Value> Stats(v8::Isolate* isolate) {
       .Set("live", state.live)
       .Set("usbStarted", state.usb_started)
       .Set("hybridStarted", state.hybrid_started)
+      .Set("usbDevices", state.usb_devices)
+      .Set("hybridDevices", state.hybrid_devices)
+      .Set("platformDevices", state.platform_devices)
+      .Set("requestType", state.request_type)
       .Set("observers", static_cast<int>(state.observers.size()))
       .Set("mockFailed", testing::UnitTest::GetInstance()->Failed())
       .Build();
@@ -246,6 +323,9 @@ void Initialize(v8::Local<v8::Object> exports,
   gin_helper::Dictionary dict(v8::Isolate::GetCurrent(), exports);
   dict.SetMethod("install", &Install);
   dict.SetMethod("prepare", &Prepare);
+  dict.SetMethod("prepareCreation", &PrepareCreation);
+  dict.SetMethod("preparePlatform", &PreparePlatform);
+  dict.SetMethod("qrRequestType", &QrRequestType);
   dict.SetMethod("setPowered", &SetPowered);
   dict.SetMethod("stats", &Stats);
   dict.SetMethod("uninstall", &Uninstall);

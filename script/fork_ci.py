@@ -25,6 +25,7 @@ BRANCH_KINDS = {
     "experimental/linux-phone-passkey-main": "authentication",
     "fix/in-memory-storage-shutdown": "storage",
     "docs/fork-ci-active-status": "ci",
+    "experimental/linux-phone-passkey-create-main": "creation",
 }
 
 
@@ -282,6 +283,14 @@ def types(root):
                              'session.defaultSession.setWebAuthnHybridHandler(null);\n'
                              '// @ts-expect-error a number is not an ownership callback\n'
                              'session.defaultSession.setWebAuthnHybridHandler(123);\n')
+        if has_hybrid and "enable-electron-webauthn-hybrid-creation" in (root / "docs/api/session.md").read_text():
+            with smoke.open("a", encoding="utf-8") as stream:
+                stream.write('session.defaultSession.setWebAuthnHybridHandler(details => {\n'
+                             '  const kind: string = details.requestType;\n'
+                             '  // @ts-expect-error requestType must not be an untyped number\n'
+                             '  const invalid: number = details.requestType;\n'
+                             '  void kind; void invalid; return true;\n'
+                             '});\n')
         run(["node", "script/yarn.js", "create-typescript-definitions"], root)
         if has_hybrid and "setWebAuthnHybridHandler" not in (root / "electron.d.ts").read_text():
             raise ValueError("Generated declarations omitted the hybrid API")
@@ -374,17 +383,22 @@ def main():
     parser.add_argument("--source-root", type=Path, default=Path.cwd())
     parser.add_argument("--base-sha")
     parser.add_argument("--tools-root", type=Path)
-    parser.add_argument("--source-kind", choices=("authentication", "storage", "ci"))
+    parser.add_argument("--source-kind", choices=("authentication", "creation", "storage", "ci"))
     args = parser.parse_args()
     root = args.source_root.resolve()
     if args.phase == "matrix":
         matrix()
     elif args.phase == "verify":
-        if args.source_kind == "authentication":
+        if args.source_kind in ("authentication", "creation"):
             if (not (root / "script/run-webauthn-hybrid-tests.py").is_file()
                     or "ses.setWebAuthnHybridHandler(handler)" not in
                     (root / "docs/api/session.md").read_text()):
                 raise ValueError("Expected authentication API and state runner are missing")
+            if args.source_kind == "creation" and (
+                    not (root / "spec/fixtures/api/webauthn-hybrid/creation.cjs").is_file()
+                    or "enable-electron-webauthn-hybrid-creation" not in
+                    (root / "docs/api/session.md").read_text()):
+                raise ValueError("Expected creation fixture and explicit opt-in are missing")
         elif args.source_kind == "storage":
             if (STORAGE_PATCH not in patch_registry(root)
                     or not (root / "script/run-storage-shutdown-tests.py").is_file()):

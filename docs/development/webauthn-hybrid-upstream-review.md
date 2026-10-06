@@ -5,7 +5,8 @@
 Source review of [electron/electron#53733](https://github.com/electron/electron/pull/53733)
 at head `304c8efa796182a166b9d8cec8f8c82f86c5e588` found overlapping native
 QR/discovery configuration, with modal creation and assertion support on macOS
-and Linux. This branch retains its separate Linux authentication-only API.
+and Linux. The authentication base retains its separate Linux API; this follow-up adds
+creation behind an additional switch.
 Request IDs, per-request ownership, cancellation, availability transitions and
 posted terminal notification are additional lifecycle concerns. No upstream
 review, message or PR has been submitted from this fork.
@@ -33,11 +34,17 @@ cannot establish native lifetime properties.
 
 ## Separate creation follow-up
 
-Finish and review authentication before a separate creation PR. Chromium already
-provides make-credential, caBLE, QR encoding and origin/RP/response machinery.
-The follow-up must deliberately define eligibility and request type/UI wording;
-cover attachment, resident key, UV, algorithms, excludeCredentials and
-platform-only requests; and test cancellation, timeout, navigation, destruction
-and shutdown using browser-owned requests. Any real disposable-RP registration
-and subsequent sign-in requires a user-controlled test handoff. No creation
-support or real credential creation is included here.
+Creation is isolated on `experimental/linux-phone-passkey-create-main`, targeting
+`experimental/linux-phone-passkey-main`. Its extra switch and `requestType` field
+leave authentication-only deployment available on the base branch. Source and
+synthetic tests cover attachment, resident keys, UV, algorithms, exclusions,
+platform-only requests, cancellation, timeout, navigation, destruction and app
+shutdown. See [creation coverage](webauthn-hybrid-testing.md#creation-follow-up).
+
+Real phone transport, account enrollment and RP acceptance remain untested.
+A user-controlled test should use a disposable relying party and account, confirm
+that UI says "Create a passkey" with the expected origin/RP, explicitly approve
+creation on the phone, then check a separate sign-in and cancellation. Keep QR,
+credential, account and device data out of reports. `ended` signals native
+lifecycle completion, not successful RP enrollment. This repository includes no
+application-specific registration UI and no real credential-creation automation.

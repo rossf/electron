@@ -2,7 +2,7 @@ name: Fork source checks
 
 on:
   pull_request:
-    branches: [main, baseline/electron-v43.7.0-fork-ci]
+    branches: [main, baseline/electron-v43.7.0-fork-ci, experimental/linux-phone-passkey-main]
     types: [opened, reopened, synchronize]
 
 permissions:
@@ -17,7 +17,7 @@ jobs:
     if: >-
       github.repository == 'rossf/electron' &&
       github.event.pull_request.head.repo.full_name == 'rossf/electron' &&
-      contains(fromJSON('["experimental/linux-phone-passkey-preservation","experimental/linux-phone-passkey-main","fix/in-memory-storage-shutdown","docs/fork-ci-active-status"]'), github.head_ref)
+      contains(fromJSON('["experimental/linux-phone-passkey-preservation","experimental/linux-phone-passkey-main","fix/in-memory-storage-shutdown","docs/fork-ci-active-status","experimental/linux-phone-passkey-create-main"]'), github.head_ref)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:

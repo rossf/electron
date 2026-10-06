@@ -1025,11 +1025,15 @@ win.webContents.session.setCertificateVerifyProc((request, callback) => {
 Experimental prototype; not a production API. Requires the default-off
 process switch `enable-electron-webauthn-hybrid` and a handler registered on this
 session before the request. A process switch without a session handler does not
-configure native hybrid discovery.
+configure native hybrid discovery. Creation additionally requires the separate
+`enable-electron-webauthn-hybrid-creation` process switch. Without that second
+switch, registration keeps the existing native behavior.
 
 * `handler` Function\<boolean\> | null
   * `details` Object
     * `requestId` string - Unique identifier for this native ceremony.
+    * `requestType` string - `get` for authentication or `create` for registration,
+      including the terminal `ended` update. Use distinct UI wording for each.
     * `state` string - `ready`, `unavailable`, or `ended`.
     * `origin` string - Chromium-validated calling origin, except in `ended`.
     * `relyingPartyId` string - Chromium-validated RP ID, except in `ended`.
@@ -1045,7 +1049,7 @@ The handler must return literal `true` synchronously to acknowledge
 and exceptions cancel this owned request. The return value for `ended` is
 ignored; exceptions during terminal cleanup are contained.
 
-Registration establishes trusted main-process UI ownership. The native request
+Calling this setter establishes trusted main-process UI ownership. The native request
 snapshots the handler without running JavaScript during discovery configuration.
 Removing or replacing the session handler affects future requests only; existing
 requests keep their original owner and cancel handle. To withdraw an existing
@@ -1065,12 +1069,19 @@ middle of native destruction. Clear the request UI and QR data. This is not proo
 that the RP accepted an assertion. Shutdown may prevent delivery, so close UI on
 session/app shutdown too.
 
-Only modal `navigator.credentials.get()` is configured; creation, conditional
-requests and virtual test overrides are excluded. Chromium retains WebAuthn,
-origin/RP, Permissions Policy, challenge and authenticator processing. This API
-accepts no assertions and cannot change UP/UV requirements. No phone pairing is
-persisted. Existing `select-webauthn-account` handles account selection; never
-silently choose a real credential.
+Modal `navigator.credentials.get()` is eligible. With both switches enabled,
+modal `navigator.credentials.create()` is eligible too. Conditional requests,
+CMTG-key requests and virtual test overrides are excluded. Chromium filters
+platform-only creation before discovery; those requests do not present hybrid
+UI or get cancelled through this owner.
+
+Chromium retains origin/RP, Permissions Policy, challenge, authenticator attachment,
+resident-key, user-verification, algorithm and exclusion-list processing. The
+handler accepts no credential responses and cannot relax those requirements.
+Use `requestType` to distinguish "Create a passkey" from "Sign in with a passkey";
+`ended` does not prove that the RP accepted either operation. No phone pairing
+is persisted. Existing `select-webauthn-account` handles account selection;
+never silently choose a real credential.
 
 #### `ses.setPermissionRequestHandler(handler)`
 

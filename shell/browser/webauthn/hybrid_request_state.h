@@ -12,10 +12,10 @@ namespace electron {
 class HybridRequestState {
  public:
   bool Configure(bool enabled,
-                 bool modal_get,
+                 bool modal_request,
                  bool virtual_environment,
                  bool has_factory) {
-    if (configured_ || closed_ || !enabled || !modal_get ||
+    if (configured_ || closed_ || !enabled || !modal_request ||
         virtual_environment || !has_factory) {
       return false;
     }
