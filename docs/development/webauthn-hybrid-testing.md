@@ -146,3 +146,11 @@ API declarations and compiled the positive/negative `requestType` TypeScript
 fixture. The build included the separate storage fix for local validation;
 it is not part of the creation PR. CMTG and virtual-override exclusion have
 static/state-gate evidence, not additional browser creation cases.
+
+The tested creation native inputs match
+`45ecd725f5f0e7092221c9a31c82450c46914d1b`, with the separate storage head
+`4076a8688ef5db2ff019826c31f570881555b3d0`. The combined build also passed the
+production storage contract, ten in-memory and three disk-backed shutdowns.
+The unchanged upstream WebAuthn spec passed seven Linux cases, with 16 macOS-only
+cases skipped, using ordinary Electron and one worker. These results retain the
+same limitations as the authentication validation above.
