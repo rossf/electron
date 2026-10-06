@@ -11,7 +11,8 @@ concurrency:
 
 jobs:
   setup:
-    if: github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron')
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -44,7 +45,8 @@ jobs:
 
   apply-patches:
     needs: setup
-    if: ${{ needs.setup.outputs.has-patches == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.has-patches == 'true')
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
       contents: read
@@ -92,7 +94,8 @@ jobs:
   # Each host is a separate job so a re-run for one host only re-runs that host.
   build-siso-macos:
     needs: setup
-    if: ${{ needs.setup.outputs.has-siso-patches == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.has-siso-patches == 'true')
     uses: ./.github/workflows/pipeline-segment-build-siso.yml
     permissions:
       contents: read
@@ -101,7 +104,8 @@ jobs:
 
   build-siso-linux:
     needs: setup
-    if: ${{ needs.setup.outputs.has-siso-patches == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.has-siso-patches == 'true')
     uses: ./.github/workflows/pipeline-segment-build-siso.yml
     permissions:
       contents: read
@@ -110,7 +114,8 @@ jobs:
 
   build-siso-windows:
     needs: setup
-    if: ${{ needs.setup.outputs.has-siso-patches == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.has-siso-patches == 'true')
     uses: ./.github/workflows/pipeline-segment-build-siso.yml
     permissions:
       contents: read

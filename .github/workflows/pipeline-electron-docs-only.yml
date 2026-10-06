@@ -19,6 +19,8 @@ env:
 
 jobs:
   docs-only:
+    if: >-
+      github.repository == 'electron/electron'
     name: Docs Only Compile
     runs-on: electron-arc-centralus-linux-amd64-4core
     permissions:

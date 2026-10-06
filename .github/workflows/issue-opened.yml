@@ -9,7 +9,8 @@ permissions: {}
 
 jobs:
   add-to-issue-triage:
-    if: ${{ contains(github.event.issue.labels.*.name, 'bug :beetle:') }}
+    if: >-
+      github.repository == 'electron/electron' && (contains(github.event.issue.labels.*.name, 'bug :beetle:'))
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -27,7 +28,8 @@ jobs:
           project-number: 90
           token: ${{ steps.generate-token.outputs.token }}
   set-labels:
-    if: ${{ contains(github.event.issue.labels.*.name, 'bug :beetle:') }}
+    if: >-
+      github.repository == 'electron/electron' && (contains(github.event.issue.labels.*.name, 'bug :beetle:'))
     runs-on: ubuntu-latest
     permissions: {}
     steps:

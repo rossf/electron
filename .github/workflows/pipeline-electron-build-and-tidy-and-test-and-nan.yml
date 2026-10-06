@@ -72,6 +72,8 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-build.yml
     permissions:
       contents: read
@@ -87,6 +89,8 @@ jobs:
       upload-out-gen-artifacts: true
     secrets: inherit
   clang-tidy:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-clang-tidy.yml
     permissions:
       contents: read
@@ -98,6 +102,8 @@ jobs:
       target-arch: ${{ inputs.target-arch }}
     secrets: inherit
   test:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-test.yml
     permissions:
       contents: read
@@ -117,7 +123,8 @@ jobs:
       issues: read
       pull-requests: read
     needs: build
-    if: ${{ inputs.target-platform == 'linux' && inputs.target-arch == 'x64' && !inputs.is-asan }}
+    if: >-
+      github.repository == 'electron/electron' && (inputs.target-platform == 'linux' && inputs.target-arch == 'x64' && !inputs.is-asan)
     with:
       target-arch: ${{ inputs.target-arch }}
       target-platform: ${{ inputs.target-platform }}
@@ -126,6 +133,8 @@ jobs:
       display-server: wayland
     secrets: inherit
   nn-test:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-node-nan-test.yml
     permissions:
       contents: read

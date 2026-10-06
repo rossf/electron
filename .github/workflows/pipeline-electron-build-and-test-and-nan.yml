@@ -63,6 +63,8 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-build.yml
     permissions:
       contents: read
@@ -77,6 +79,8 @@ jobs:
       upload-to-storage: ${{ inputs.upload-to-storage }}
     secrets: inherit
   test:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-test.yml
     permissions:
       contents: read
@@ -90,6 +94,8 @@ jobs:
       test-container: ${{ inputs.test-container }}
     secrets: inherit
   nn-test:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-node-nan-test.yml
     permissions:
       contents: read

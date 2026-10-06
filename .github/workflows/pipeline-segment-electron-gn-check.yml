@@ -39,6 +39,8 @@ env:
 
 jobs:
   gn-check:
+    if: >-
+      github.repository == 'electron/electron'
     defaults:
       run:
         shell: bash

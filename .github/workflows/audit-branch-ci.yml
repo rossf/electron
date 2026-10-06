@@ -11,7 +11,8 @@ permissions: {}
 jobs:
   audit_branch_ci:
     name: Audit CI on Branches
-    if: github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron')
     runs-on: ubuntu-latest
     permissions:
       contents: read

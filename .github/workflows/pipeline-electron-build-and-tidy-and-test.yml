@@ -77,6 +77,8 @@ permissions: {}
 
 jobs:
   build:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-build.yml
     permissions:
       contents: read
@@ -94,6 +96,8 @@ jobs:
       upload-out-gen-artifacts: true
     secrets: inherit
   clang-tidy:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-clang-tidy.yml
     permissions:
       contents: read
@@ -105,6 +109,8 @@ jobs:
       target-arch: ${{ inputs.target-arch }}
     secrets: inherit
   test:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-test.yml
     permissions:
       contents: read
