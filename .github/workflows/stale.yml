@@ -9,7 +9,8 @@ permissions: {}
 
 jobs:
   stale:
-    if: github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron')
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -34,7 +35,8 @@ jobs:
   pending-repro:
     runs-on: ubuntu-latest
     permissions: {}
-    if: ${{ always() && github.repository == 'electron/electron' }}
+    if: >-
+      github.repository == 'electron/electron' && (always() && github.repository == 'electron/electron')
     needs: stale
     steps:
       - name: Generate GitHub App token

@@ -127,6 +127,8 @@ env:
 
 jobs:
   build:
+    if: >-
+      github.repository == 'electron/electron'
     defaults:
       run:
         shell: bash

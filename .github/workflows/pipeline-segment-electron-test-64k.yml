@@ -24,6 +24,8 @@ env:
 
 jobs:
   test-linux-arm64-64k:
+    if: >-
+      github.repository == 'electron/electron'
     env:
       BUILD_TYPE: linux
       TARGET_ARCH: arm64      

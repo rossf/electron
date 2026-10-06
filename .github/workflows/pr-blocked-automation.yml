@@ -14,9 +14,7 @@ jobs:
   need-tests:
     name: Tests Needed
     if: >-
-      github.event_name == 'pull_request_target'
-      && github.event.action == 'labeled'
-      && github.event.label.name == 'blocked/need-tests'
+      github.repository == 'electron/electron' && (github.event_name == 'pull_request_target' && github.event.action == 'labeled' && github.event.label.name == 'blocked/need-tests')
     runs-on: ubuntu-slim
     permissions: {}
     steps:
@@ -48,9 +46,7 @@ jobs:
   need-issue:
     name: Issue Needed
     if: >-
-      github.event_name == 'pull_request_target'
-      && github.event.action == 'labeled'
-      && github.event.label.name == 'blocked/need-issue'
+      github.repository == 'electron/electron' && (github.event_name == 'pull_request_target' && github.event.action == 'labeled' && github.event.label.name == 'blocked/need-issue')
     runs-on: ubuntu-slim
     permissions: {}
     steps:
@@ -85,11 +81,7 @@ jobs:
     name: Blocked
     needs: [need-tests, need-issue]
     if: >-
-      always()
-      && github.repository == 'electron/electron'
-      && github.event_name == 'pull_request_target'
-      && (contains(github.event.pull_request.labels.*.name, 'blocked/need-tests')
-        || contains(github.event.pull_request.labels.*.name, 'blocked/need-issue'))
+      github.repository == 'electron/electron' && (always() && github.repository == 'electron/electron' && github.event_name == 'pull_request_target' && (contains(github.event.pull_request.labels.*.name, 'blocked/need-tests')   || contains(github.event.pull_request.labels.*.name, 'blocked/need-issue')))
     runs-on: ubuntu-slim
     permissions: {}
     steps:

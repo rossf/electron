@@ -82,6 +82,8 @@ env:
 
 jobs:
   test:
+    if: >-
+      github.repository == 'electron/electron'
     defaults:
       run:
         shell: bash

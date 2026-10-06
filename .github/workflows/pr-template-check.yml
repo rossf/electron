@@ -12,7 +12,8 @@ permissions: {}
 
 jobs:
   check-pr-template:
-    if: ${{ github.event.pull_request.head.repo.fork && !github.event.pull_request.draft && !startsWith(github.head_ref, 'roller/') }}
+    if: >-
+      github.repository == 'electron/electron' && (github.event.pull_request.head.repo.fork && !github.event.pull_request.draft && !startsWith(github.head_ref, 'roller/'))
     name: Check PR Template
     runs-on: ubuntu-slim
     permissions:

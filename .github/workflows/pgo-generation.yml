@@ -42,7 +42,8 @@ permissions: {}
 
 jobs:
   setup:
-    if: ${{ github.repository == 'electron/electron' }}
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron')
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -61,7 +62,8 @@ jobs:
   # Sync the source tree once per platform (same pattern as build.yml).
   checkout-linux:
     needs: setup
-    if: ${{ !inputs.skip-linux }}
+    if: >-
+      github.repository == 'electron/electron' && (!inputs.skip-linux)
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
       contents: read
@@ -88,7 +90,8 @@ jobs:
 
   checkout-macos:
     needs: setup
-    if: ${{ !inputs.skip-macos }}
+    if: >-
+      github.repository == 'electron/electron' && (!inputs.skip-macos)
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
       contents: read
@@ -118,7 +121,8 @@ jobs:
 
   checkout-windows:
     needs: setup
-    if: ${{ !inputs.skip-windows }}
+    if: >-
+      github.repository == 'electron/electron' && (!inputs.skip-windows)
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
       contents: read
@@ -152,6 +156,8 @@ jobs:
   # builds; they produce the windows-amd64, linux-amd64 and darwin-arm64
   # artifacts.
   build-siso-macos:
+    if: >-
+      github.repository == 'electron/electron'
     needs: setup
     permissions:
       contents: read
@@ -160,6 +166,8 @@ jobs:
       host: darwin-arm64
 
   build-siso-linux:
+    if: >-
+      github.repository == 'electron/electron'
     needs: setup
     permissions:
       contents: read
@@ -168,6 +176,8 @@ jobs:
       host: linux-amd64
 
   build-siso-windows:
+    if: >-
+      github.repository == 'electron/electron'
     needs: setup
     permissions:
       contents: read
@@ -180,6 +190,8 @@ jobs:
   # ---------------------------------------------------------------------------
 
   build-linux-x64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
       issues: read
@@ -211,6 +223,8 @@ jobs:
       SUDOWOODO_EXCHANGE_URL: ${{ secrets.SUDOWOODO_EXCHANGE_URL }}
 
   build-linux-arm64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
       issues: read
@@ -242,6 +256,8 @@ jobs:
       SUDOWOODO_EXCHANGE_URL: ${{ secrets.SUDOWOODO_EXCHANGE_URL }}
 
   build-macos-x64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
       issues: read
@@ -273,6 +289,8 @@ jobs:
       SUDOWOODO_EXCHANGE_URL: ${{ secrets.SUDOWOODO_EXCHANGE_URL }}
 
   build-macos-arm64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
       issues: read
@@ -304,6 +322,8 @@ jobs:
       SUDOWOODO_EXCHANGE_URL: ${{ secrets.SUDOWOODO_EXCHANGE_URL }}
 
   build-windows-x64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
       issues: read
@@ -334,6 +354,8 @@ jobs:
       SUDOWOODO_EXCHANGE_URL: ${{ secrets.SUDOWOODO_EXCHANGE_URL }}
 
   build-windows-arm64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
       issues: read
@@ -369,6 +391,8 @@ jobs:
   # ---------------------------------------------------------------------------
 
   generate-v8-builtins-profiles:
+    if: >-
+      github.repository == 'electron/electron'
     name: Generate V8 Builtins Profiles
     needs: checkout-linux
     runs-on: electron-arc-centralus-linux-amd64-32core
@@ -471,6 +495,8 @@ jobs:
   # ---------------------------------------------------------------------------
 
   collect-linux-x64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
     uses: ./.github/workflows/pipeline-segment-pgo-collect.yml
@@ -484,6 +510,8 @@ jobs:
       collect-container: '{"image":"ghcr.io/electron/build:${{ needs.checkout-linux.outputs.build-image-sha }}","options":"--user root --privileged --init"}'
 
   collect-linux-arm64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
     uses: ./.github/workflows/pipeline-segment-pgo-collect.yml
@@ -498,6 +526,8 @@ jobs:
       collect-container: '{"image":"ghcr.io/electron/test:arm64v8-${{ needs.checkout-linux.outputs.build-image-sha }}","options":"--user root --privileged --init"}'
 
   collect-macos-x64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
     uses: ./.github/workflows/pipeline-segment-pgo-collect.yml
@@ -510,6 +540,8 @@ jobs:
       collect-runs-on: macos-15-large
 
   collect-macos-arm64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
     uses: ./.github/workflows/pipeline-segment-pgo-collect.yml
@@ -522,6 +554,8 @@ jobs:
       collect-runs-on: macos-15
 
   collect-windows-x64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
     uses: ./.github/workflows/pipeline-segment-pgo-collect.yml
@@ -534,6 +568,8 @@ jobs:
       collect-runs-on: windows-latest
 
   collect-windows-arm64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
     uses: ./.github/workflows/pipeline-segment-pgo-collect.yml
@@ -554,7 +590,8 @@ jobs:
     # checkout-linux provides the container image SHA and the src cache.
     needs: [checkout-linux, collect-linux-x64, collect-linux-arm64, collect-macos-x64, collect-macos-arm64, collect-windows-x64, collect-windows-arm64]
     # Merge whatever was collected; repo guard because !cancelled() runs in forks.
-    if: ${{ !cancelled() && github.repository == 'electron/electron' }}
+    if: >-
+      github.repository == 'electron/electron' && (!cancelled() && github.repository == 'electron/electron')
     runs-on: electron-arc-centralus-linux-amd64-4core
     container:
       image: ghcr.io/electron/build:${{ needs.checkout-linux.outputs.build-image-sha }}
@@ -647,7 +684,8 @@ jobs:
     # files. Skipped jobs (the skip-* inputs) are allowed - intentionally
     # regenerating a subset of platforms is fine; failures are not.
     needs: [collect-linux-x64, collect-linux-arm64, collect-macos-x64, collect-macos-arm64, collect-windows-x64, collect-windows-arm64, generate-v8-builtins-profiles, merge-profiles]
-    if: ${{ !cancelled() && github.repository == 'electron/electron' && needs.merge-profiles.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && inputs.upload-to-storage }}
+    if: >-
+      github.repository == 'electron/electron' && (!cancelled() && github.repository == 'electron/electron' && needs.merge-profiles.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && inputs.upload-to-storage)
     runs-on: ubuntu-latest
     # Holds the Azure OIDC credentials; restricted to protected branches.
     environment: pgo-upload
@@ -781,7 +819,8 @@ jobs:
   # Aggregate gate so a single status reflects the whole run.
   pgo-done:
     needs: [collect-linux-x64, collect-linux-arm64, collect-macos-x64, collect-macos-arm64, collect-windows-x64, collect-windows-arm64, generate-v8-builtins-profiles, merge-profiles, upload-profiles]
-    if: always() && !cancelled() && github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (always() && !cancelled() && github.repository == 'electron/electron')
     runs-on: ubuntu-latest
     permissions: {}
     steps:

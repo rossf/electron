@@ -100,6 +100,8 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-build.yml
     permissions:
       contents: read
@@ -129,7 +131,8 @@ jobs:
     permissions:
       contents: read
     needs: build
-    if: ${{ inputs.run-clang-tidy }}
+    if: >-
+      github.repository == 'electron/electron' && (inputs.run-clang-tidy)
     with:
       clang-tidy-runs-on: ${{ inputs.clang-tidy-runs-on }}
       clang-tidy-container: ${{ inputs.clang-tidy-container }}
@@ -138,6 +141,8 @@ jobs:
     secrets:
       ELECTRON_RBE_JWT: ${{ secrets.ELECTRON_RBE_JWT }}
   test:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-test.yml
     permissions:
       contents: read
@@ -165,7 +170,8 @@ jobs:
       issues: read
       pull-requests: read
     needs: build
-    if: ${{ inputs.target-platform == 'linux' && inputs.target-arch == 'x64' && !inputs.is-asan }}
+    if: >-
+      github.repository == 'electron/electron' && (inputs.target-platform == 'linux' && inputs.target-arch == 'x64' && !inputs.is-asan)
     with:
       target-arch: ${{ inputs.target-arch }}
       target-platform: ${{ inputs.target-platform }}
@@ -182,6 +188,8 @@ jobs:
       ELECTRON_RBE_JWT: ${{ secrets.ELECTRON_RBE_JWT }}
       SSH_DEBUG_AUTHORIZED_USERS: ${{ secrets.SSH_DEBUG_AUTHORIZED_USERS }}
   nn-test:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-node-nan-test.yml
     permissions:
       contents: read

@@ -8,6 +8,8 @@ permissions: {}
 
 jobs:
   update-website-docs:
+    if: >-
+      github.repository == 'electron/electron'
     name: Update Website Docs
     runs-on: ubuntu-latest
     environment: website-docs-updater

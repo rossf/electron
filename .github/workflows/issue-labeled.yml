@@ -9,7 +9,8 @@ permissions: {}
 jobs:
   issue-labeled-with-status:
     name: status/{confirmed,reviewed} label added
-    if: github.event.label.name == 'status/confirmed' || github.event.label.name == 'status/reviewed'
+    if: >-
+      github.repository == 'electron/electron' && (github.event.label.name == 'status/confirmed' || github.event.label.name == 'status/reviewed')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -30,7 +31,8 @@ jobs:
           fail-if-item-not-found: false
   issue-labeled-blocked:
     name: blocked/* label added
-    if: startsWith(github.event.label.name, 'blocked/')
+    if: >-
+      github.repository == 'electron/electron' && (startsWith(github.event.label.name, 'blocked/'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -51,7 +53,8 @@ jobs:
           fail-if-item-not-found: false
   issue-labeled-blocked-need-repro:
     name: blocked/need-repro label added
-    if: github.event.label.name == 'blocked/need-repro'
+    if: >-
+      github.repository == 'electron/electron' && (github.event.label.name == 'blocked/need-repro')
     permissions:
       issues: write  # for gh issue comment to update issues
     runs-on: ubuntu-latest

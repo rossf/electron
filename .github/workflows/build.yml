@@ -47,7 +47,8 @@ permissions: {}
 
 jobs:
   setup:
-    if: github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron')
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -133,7 +134,8 @@ jobs:
   # reported as skipped, which branch protection treats as satisfied.
   lint:
     needs: setup
-    if: ${{ !inputs.skip-lint }}
+    if: >-
+      github.repository == 'electron/electron' && (!inputs.skip-lint)
     uses: ./.github/workflows/pipeline-electron-lint.yml
     permissions:
       contents: read
@@ -146,7 +148,8 @@ jobs:
   # Docs Only Jobs
   docs-only:
     needs: [setup, checkout-linux]
-    if: ${{ needs.setup.outputs.docs-only == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.docs-only == 'true')
     uses: ./.github/workflows/pipeline-electron-docs-only.yml
     permissions:
       contents: read
@@ -156,7 +159,8 @@ jobs:
   # Checkout Jobs
   checkout-macos:
     needs: setup
-    if: ${{ needs.setup.outputs.src == 'true' && !inputs.skip-macos}}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true' && !inputs.skip-macos)
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
       contents: read
@@ -196,7 +200,8 @@ jobs:
   # skip it via the docs-only output instead.
   checkout-linux:
     needs: setup
-    if: ${{ (needs.setup.outputs.src == 'true' || needs.setup.outputs.docs-only == 'true') && !inputs.skip-linux }}
+    if: >-
+      github.repository == 'electron/electron' && ((needs.setup.outputs.src == 'true' || needs.setup.outputs.docs-only == 'true') && !inputs.skip-linux)
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
       contents: read
@@ -228,7 +233,8 @@ jobs:
 
   checkout-windows:
     needs: setup
-    if: ${{ needs.setup.outputs.src == 'true' && !inputs.skip-windows }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true' && !inputs.skip-windows)
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
       contents: read
@@ -267,7 +273,8 @@ jobs:
   # use it via SISO_PATH.
   build-siso-macos:
     needs: setup
-    if: ${{ needs.setup.outputs.src == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true')
     uses: ./.github/workflows/pipeline-segment-build-siso.yml
     permissions:
       contents: read
@@ -276,7 +283,8 @@ jobs:
 
   build-siso-linux:
     needs: setup
-    if: ${{ needs.setup.outputs.src == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true')
     uses: ./.github/workflows/pipeline-segment-build-siso.yml
     permissions:
       contents: read
@@ -285,7 +293,8 @@ jobs:
 
   build-siso-windows:
     needs: setup
-    if: ${{ needs.setup.outputs.src == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true')
     uses: ./.github/workflows/pipeline-segment-build-siso.yml
     permissions:
       contents: read
@@ -294,6 +303,8 @@ jobs:
 
   # GN Check Jobs
   macos-gn-check:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-gn-check.yml
     permissions:
       contents: read
@@ -310,7 +321,8 @@ jobs:
     permissions:
       contents: read
     needs: checkout-linux
-    if: ${{ needs.setup.outputs.src == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true')
     with:
       target-platform: linux
       target-archs: x64 arm64
@@ -320,6 +332,8 @@ jobs:
       ELECTRON_RBE_JWT: ${{ secrets.ELECTRON_RBE_JWT }}
 
   windows-gn-check:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-gn-check.yml
     permissions:
       contents: read
@@ -341,6 +355,8 @@ jobs:
   # carrying the run-full-macos label (labels are read from the event that
   # started the run, so add the label before the next push).
   macos-x64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
       issues: read
@@ -376,6 +392,8 @@ jobs:
   # skip above, the check is still reported as skipped, which branch
   # protection treats as satisfied.
   macos-arm64:
+    if: >-
+      github.repository == 'electron/electron'
     permissions:
       contents: read
       issues: read
@@ -414,7 +432,8 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/pipeline-electron-build-and-tidy-and-test-and-nan.yml
     needs: [setup, checkout-linux, build-siso-linux]
-    if: ${{ needs.setup.outputs.src == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true')
     with:
       build-runs-on: electron-arc-centralus-linux-amd64-32core
       clang-tidy-runs-on: electron-arc-centralus-linux-amd64-8core
@@ -448,7 +467,8 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/pipeline-electron-build-and-test.yml
     needs: [checkout-linux, build-siso-linux]
-    if: ${{ needs.setup.outputs.src == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true')
     with:
       build-runs-on: electron-arc-centralus-linux-amd64-32core
       test-runs-on: electron-arc-centralus-linux-amd64-4core
@@ -480,7 +500,8 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/pipeline-electron-build-and-test.yml
     needs: [checkout-linux, build-siso-linux]
-    if: ${{ needs.setup.outputs.src == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true')
     with:
       build-runs-on: electron-arc-centralus-linux-amd64-32core
       test-runs-on: electron-arc-centralus-linux-amd64-4core
@@ -512,7 +533,8 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/pipeline-electron-build-and-test.yml
     needs: [checkout-linux, build-siso-linux]
-    if: ${{ needs.setup.outputs.src == 'true' }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true')
     with:
       build-runs-on: electron-arc-centralus-linux-amd64-32core
       test-runs-on: ubuntu-22.04-arm
@@ -537,6 +559,8 @@ jobs:
       SUDOWOODO_EXCHANGE_URL: ${{ secrets.SUDOWOODO_EXCHANGE_URL }}
     
   test-linux-arm64-64k:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-test-64k.yml
     permissions:
       contents: read
@@ -554,7 +578,8 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/pipeline-electron-build-and-tidy-and-test.yml
     needs: [setup, checkout-windows, build-siso-windows]
-    if: ${{ needs.setup.outputs.src == 'true' && !inputs.skip-windows }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true' && !inputs.skip-windows)
     with:
       build-runs-on: garm-windows-x64-32core
       clang-tidy-runs-on: electron-arc-centralus-linux-amd64-8core
@@ -586,7 +611,8 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/pipeline-electron-build-and-test.yml
     needs: [checkout-windows, build-siso-windows]
-    if: ${{ needs.setup.outputs.src == 'true' && !inputs.skip-windows }}
+    if: >-
+      github.repository == 'electron/electron' && (needs.setup.outputs.src == 'true' && !inputs.skip-windows)
     with:
       build-runs-on: garm-windows-x64-32core
       test-runs-on: windows-11-arm
@@ -614,7 +640,8 @@ jobs:
     permissions:
       contents: read
     needs: [docs-only, checkout-macos, checkout-linux, checkout-windows, macos-x64, macos-arm64, linux-x64, linux-x64-asan, linux-x64-ubsan, linux-arm64, build-siso-macos, build-siso-linux, build-siso-windows, windows-x64, windows-arm64]
-    if: always() && github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (always() && github.repository == 'electron/electron')
     steps:
     - name: Fail if any needed job failed or was cancelled
       if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')

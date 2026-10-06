@@ -106,6 +106,8 @@ permissions: {}
 
 jobs:
   build:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-build.yml
     permissions:
       contents: read
@@ -134,6 +136,8 @@ jobs:
       SSH_DEBUG_AUTHORIZED_USERS: ${{ secrets.SSH_DEBUG_AUTHORIZED_USERS }}
       SUDOWOODO_EXCHANGE_URL: ${{ secrets.SUDOWOODO_EXCHANGE_URL }}
   test:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-test.yml
     permissions:
       contents: read
