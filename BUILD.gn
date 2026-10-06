@@ -546,6 +546,7 @@ source_set("electron_lib") {
     "//content/public/gpu",
     "//content/public/renderer",
     "//content/public/utility",
+    "//crypto",
     "//device/bluetooth",
     "//device/bluetooth/public/cpp",
     "//device/fido",
@@ -562,6 +563,7 @@ source_set("electron_lib") {
     "//services/device/public/cpp/geolocation",
     "//services/device/public/cpp/hid",
     "//services/device/public/mojom",
+    "//services/network/public/mojom",
     "//services/proxy_resolver:lib",
     "//services/video_capture/public/mojom:constants",
     "//services/viz/privileged/mojom/compositing",
@@ -2068,4 +2070,11 @@ if (is_linux && is_official_build) {
     compress_debug_sections = true
     deps = mksnapshot_deps
   }
+}
+
+# Small dependency-free lifetime-policy test. Does not exercise caBLE or V8.
+executable("electron_webauthn_hybrid_state_tests") {
+  testonly = true
+  sources = [ "shell/browser/webauthn/hybrid_request_state_test.cc" ]
+  include_dirs = [ "." ]
 }
