@@ -7,7 +7,7 @@ Keep DCHECKs enabled for native lifetime checks.
 
 ## Source and build inputs
 
-Use this branch in a normal Electron dependency checkout. `DEPS` pins Chromium;
+Use this branch in a normal Electron dependency checkout. `DEPS` pins Chromium.
 The independent in-memory storage task-trait fix and its reproducer are tracked
 on `rossf/electron` branch `fix/in-memory-storage-shutdown`; they are not part of
 this authentication diff. The previously validated fixed binary combined both
@@ -59,17 +59,39 @@ helpers is likewise not required by this standalone native suite.
 
 ## Fork CI status
 
-`fork-hybrid-state.yml` is a five-minute, read-only `ubuntu-24.04` PR job. It
-checks the exact base/head diff and builds/runs only the standalone state test.
-It uses a pinned checkout action without persisted credentials, and has no
-secrets, cache, artifacts, publishing or dispatch steps. It does not test native
-WebAuthn, BLE, V8 lifetime or storage shutdown.
+The reviewed source-check workflow uses standard Ubuntu runners and read-only
+permissions. It checks changed C++, GN, Python, JavaScript and documentation,
+generates API types and runs actual TypeScript smoke/snippet checks, and runs
+the standalone state test. Storage heads also receive a targeted pinned-source
+patch applicability check. These are source checks; native runtime results are
+recorded separately below. See [fork CI controls](fork-ci-activation.md) for
+exact branch coverage, time limits and candidate-matrix limitations.
 
-The CI-only guard PR was approved and merged through the fork's protected
-`main`. Every active PR base and head now guards inherited jobs. The Electron 43
-comparison uses `baseline/electron-v43.7.0-fork-ci`; the original pinned baseline
-remains unchanged. Repository Actions settings require SHA pinning and allow
-only the exact checkout revision. All 52 registered inherited workflows are
-manually disabled; this is the only active workflow. Default token permissions
-are read-only and Actions cannot approve PR reviews. These settings do not
-establish a native test result; check the PR's run for the tested head.
+All 52 inherited registered workflows remain disabled and guarded. The action
+allowlist still contains only the pinned checkout action, without persisted
+credentials. No repository secret, artifact upload or publication is used.
+The original Electron 43 baseline remains pinned; PR #1 uses the guarded base.
+Check each run's exact source SHA before applying its result to a newer head.
+
+## Recorded current-main validation
+
+On 2026-10-06, a separate Linux testing build completed for Electron base
+`6b48d9813bd791453c7b57812a5395c693ba3e14` and Chromium 156.0.8078.3
+(`03a4bd2b9182691ca7d80e876878f678029aef83`). It combined authentication source
+`cc41beacdce46acee8a2e5245d037fe3f7be6904` with the independent storage source
+`22e87638d455cb036bc948312d2836846bfa2644`. These are current-main results,
+not a new build of the Electron 43 branch.
+
+The ordinary Electron and isolated authentication targets built successfully.
+GN dependency checks passed for both and the separate storage contract target.
+The standalone state test, 26 enabled native cases and four disabled native
+cases passed. The unchanged upstream `spec/api-web-authn.spec.ts` passed all
+seven Linux-applicable cases; its 16 macOS-only cases were skipped. The upstream
+spec used ordinary Electron, one worker and a disposable profile.
+
+The combined build also passed the production storage contract test, ten
+in-memory shutdowns and three disk-backed shutdowns. DCHECKs and sandboxing
+were retained, core dumps disabled, and temporary profiles removed. No real
+account, Bluetooth hardware, caBLE tunnel or live relying party was tested.
+This does not establish non-Linux compile compatibility, every resolver/GC
+shutdown path, absence of races, or production readiness.

@@ -17,19 +17,19 @@ constructing its request handler before action callbacks are installed.
 
 ## Main build and validation gate
 
-The source port has not been compiled against Chromium 156. Use a separate full
-Electron/Chromium dependency checkout and testing output directory, with DCHECKs
-and sandboxing retained. Do not reuse or overwrite the preserved Electron 43
-checkout or binaries. Native compilation, GN dependency validation, existing
-WebAuthn specs and the portable synthetic suite are required next. Review native
-peer shutdown/GC behavior on the resulting build, as well as Linux behavior and
-non-Linux compile compatibility. The network-context resolver's weak owner,
-original partition and non-null closed endpoint need continued review; the
-portable suite does not directly exercise every resolver shutdown branch.
+A separate Linux build against Chromium 156 completed with DCHECKs and
+sandboxing retained. GN checks, the portable synthetic authentication suite,
+storage contract/shutdown checks, and all seven applicable unchanged upstream
+WebAuthn cases passed. See [recorded validation](webauthn-hybrid-testing.md#recorded-current-main-validation)
+for exact source commits and scope. The preserved Electron 43 checkout and
+binaries were not overwritten.
 
-The standalone state test cannot establish those native properties. A full
-source sync/build is a separate resource commitment, not part of the small fork
-Actions job. No real account or credential is required for synthetic tests.
+Non-Linux compilation and real phone interoperability remain unvalidated on this
+build. The network-context resolver's weak owner, original partition and non-null
+closed endpoint still need review; the portable suite does not directly exercise
+every resolver or native-peer shutdown/GC path. Finite synthetic runs cannot
+establish production readiness. The standalone state test and source CI alone
+cannot establish native lifetime properties.
 
 ## Separate creation follow-up
 
