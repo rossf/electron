@@ -3,27 +3,28 @@
 These Linux checks use disposable directories, synthetic credentials and local
 fixtures. They never open a real relying party or use a production authenticator.
 They do not validate real BLE, caBLE tunnels or an authenticated website session.
-Keep DCHECKs enabled; otherwise the storage contract test is not meaningful.
+Keep DCHECKs enabled for native lifetime checks.
 
 ## Source and build inputs
 
 Use this branch in a normal Electron dependency checkout. `DEPS` pins Chromium;
-Electron's patch import applies `patches/chromium/.patches`, including the
-in-memory DOM-storage task-trait fix. Do not apply that patch a second time.
-The Chromium source fix and the test-only Electron targets are separate changes.
+The independent in-memory storage task-trait fix and its reproducer are tracked
+on `rossf/electron` branch `fix/in-memory-storage-shutdown`; they are not part of
+this authentication diff. The previously validated fixed binary combined both
+changes. If testing that combination, import the companion patch once through
+Electron's dependency patch list and record both source heads.
 See [Electron's build instructions](build-instructions-linux.md) for toolchain
 and dependency setup. No binary or build output is stored in this repository.
 
 From the Chromium `src` directory, with a testing output directory configured:
 
 ```sh
-ninja -C out/Testing electron electron:electron_hybrid_browser_owned_tests electron:storage_blocking_contract_test
+ninja -C out/Testing electron electron:electron_hybrid_browser_owned_tests
 python3 electron/script/run-webauthn-hybrid-tests.py --out-dir out/Testing
 ```
 
 The runner compiles the dependency-free state test with a local C++17 compiler,
-runs the storage contract probe, executes enabled and disabled native suites,
-then runs ten in-memory and three disk-backed storage shutdowns. A usable Linux
+then executes enabled and disabled native suites. A usable Linux
 display is required for Electron; an existing Xvfb session is also suitable.
 The mock binding is linked only into the separately named test executable.
 The ordinary `electron` target contains no browser-owned mock binding.
@@ -34,9 +35,8 @@ For the small state test alone, from the Electron repository root:
 python3 script/run-webauthn-hybrid-tests.py --suite state
 ```
 
-`--suite native`, `--suite contract` and `--suite storage` select individual
-checks. `--native-binary` and `--electron-binary` accept explicit executable
-paths when validating an existing build. The legacy cached mock name
+`--suite native` selects the native checks. `--native-binary` accepts an explicit
+executable path when validating an existing build. The legacy cached mock name
 `electron_hybrid_browser_owned_storage_tests` is also accepted. A passing run
 identifies the tested executable, not a newly compiled checkout.
 
@@ -52,12 +52,6 @@ challenge/origin/RP/UP/UV data using a fresh virtual credential. It never saves 
 QR payload, credential or private key. Result files exist only in the temporary
 directory and are deleted at completion; stdout contains case counts and exit
 status. Timeouts terminate only the runner's newly created child process group.
-
-The storage contract probe checks blocking permission on the actual production
-task runner. The storage browser fixture uses only generated local/session
-storage values, blocks DNS, and verifies orderly process exit after writes.
-Finite shutdown runs cannot prove all possible races. A live login is neither
-required nor performed by these tests.
 
 The separate application integration and its historical full-app tests are not
 part of this Electron repository. The source snapshot of the old debug testing

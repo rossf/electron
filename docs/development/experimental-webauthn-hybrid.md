@@ -20,11 +20,11 @@ selection flow and checks for synchronous destruction after calling JavaScript.
 The isolated test executable uses main's Linux entry point plus only the test
 binding registration.
 
-The Chromium storage fix is preserved separately under `patches/chromium` and
-registered in `.patches`. It applies to the pinned Chromium 156 source, which
-still lacks `MayBlock()` on the in-memory DOM-storage runner. This source check
-is not a native build or a landed Chromium fix. The patch records provenance and
-its removal condition.
+The independent Chromium storage fix and reproducer are now on
+`rossf/electron` branch `fix/in-memory-storage-shutdown`, based on this same
+main revision. The pinned Chromium 156 storage source still lacks `MayBlock()`;
+its patch application was checked. The fix is outside this authentication diff.
+The preserved Electron 43 evidence below used both changes together.
 
 See [test reproduction](webauthn-hybrid-testing.md) and
 [upstream comparison and remaining work](webauthn-hybrid-upstream-review.md).

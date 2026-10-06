@@ -2270,13 +2270,3 @@ if (is_linux) {
     }
   }
 }
-
-# Deterministic in-memory storage task-trait regression, with DCHECKs enabled.
-executable("storage_blocking_contract_test") {
-  testonly = true
-  sources = [ "shell/browser/storage_blocking_test.cc" ]
-  deps = [
-    "//base",
-    "//components/services/storage",
-  ]
-}
