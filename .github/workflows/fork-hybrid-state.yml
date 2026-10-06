@@ -1,39 +1,105 @@
-name: Fork hybrid state checks
+name: Fork source checks
 
 on:
   pull_request:
-    branches: [main, baseline/electron-v43.7.0-c440db5]
+    branches: [main, baseline/electron-v43.7.0-fork-ci]
     types: [opened, reopened, synchronize]
 
 permissions:
   contents: read
 
+concurrency:
+  group: fork-source-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
-  state:
+  prepare:
     if: >-
       github.repository == 'rossf/electron' &&
       github.event.pull_request.head.repo.full_name == 'rossf/electron' &&
-      (github.head_ref == 'experimental/linux-phone-passkey-preservation' ||
-       github.head_ref == 'experimental/linux-phone-passkey-main')
+      contains(fromJSON('["experimental/linux-phone-passkey-preservation","experimental/linux-phone-passkey-main","fix/in-memory-storage-shutdown","docs/fork-ci-active-status"]'), github.head_ref)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      targets: ${{ steps.matrix.outputs.targets }}
     steps:
-      - name: Check out the exact PR head
+      - name: Check out the candidate harness
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 1
+          path: ci-harness
           persist-credentials: false
-      - name: Check the exact base-to-head diff
+      - name: Test patch-order and scope validation
+        run: python3 ci-harness/script/test_fork_ci.py
+      - name: Resolve exact source comparisons
+        id: matrix
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        shell: bash
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ci-harness/script/fork_ci.py matrix
+
+  source:
+    needs: prepare
+    name: Source checks (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.prepare.outputs.targets) }}
+    steps:
+      - name: Check out the candidate harness
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: ci-harness
+          persist-credentials: false
+      - name: Check out the exact source head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ matrix.head }}
+          path: src/electron
+          persist-credentials: false
+      - name: Verify source and comparison identities
+        env:
+          HEAD_SHA: ${{ matrix.head }}
+          BASE_SHA: ${{ matrix.base }}
+          MERGE_BASE: ${{ matrix.merge_base }}
+          HARNESS_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ && "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
-          git fetch --no-tags --depth=1 https://github.com/rossf/electron.git "$BASE_SHA"
-          git diff --check "$BASE_SHA" "$HEAD_SHA"
-      - name: Compile and run the standalone lifetime-policy test
-        run: python3 script/run-webauthn-hybrid-tests.py --suite state
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ && "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$MERGE_BASE" =~ ^[0-9a-f]{40}$ && "$HARNESS_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git -C src/electron rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C ci-harness rev-parse HEAD)" = "$HARNESS_SHA"
+          git -C src/electron fetch --no-tags --depth=1 https://github.com/rossf/electron.git "$MERGE_BASE"
+          printf 'Harness: %s\nSource: %s\nPR base: %s\nMerge base: %s\n' "$HARNESS_SHA" "$HEAD_SHA" "$BASE_SHA" "$MERGE_BASE"
+      - name: Require the expected source features
+        env:
+          SOURCE_KIND: ${{ matrix.kind }}
+        run: python3 ci-harness/script/fork_ci.py verify --source-root src/electron --source-kind "$SOURCE_KIND"
+      - name: Install pinned tools and locked source dependencies
+        id: setup
+        run: python3 ci-harness/script/fork_ci.py setup --source-root src/electron --tools-root "$RUNNER_TEMP/fork-ci"
+      - name: Verify tools in the next step environment
+        run: |
+          set -euo pipefail
+          command -v cpplint.py gn python3 node pylint-2.17
+          test "$(command -v cpplint.py)" = "$RUNNER_TEMP/fork-ci/bin/cpplint.py"
+          test "$(command -v gn)" = "$GITHUB_WORKSPACE/src/buildtools/linux64/gn"
+          test "$(command -v python3)" = "$RUNNER_TEMP/fork-ci/python/bin/python3"
+          test "$(command -v node)" = "$RUNNER_TEMP/fork-ci/node-v22.23.3-linux-x64/bin/node"
+          test "$(command -v pylint-2.17)" = "$RUNNER_TEMP/fork-ci/python/bin/pylint-2.17"
+      - name: Changed-file source lint and patch registry
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          MERGE_BASE: ${{ matrix.merge_base }}
+        run: python3 ci-harness/script/fork_ci.py lint --source-root src/electron --base-sha "$MERGE_BASE"
+      - name: Generate API types and run real TypeScript checks
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: python3 ci-harness/script/fork_ci.py types --source-root src/electron
+      - name: Compile and run available standalone lifetime-policy test
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: python3 ci-harness/script/fork_ci.py state --source-root src/electron
+      - name: Validate available storage patch against pinned Chromium
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: python3 ci-harness/script/fork_ci.py storage --source-root src/electron --tools-root "$RUNNER_TEMP/fork-ci"
