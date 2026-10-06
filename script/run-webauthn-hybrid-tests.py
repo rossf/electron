@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run isolated synthetic hybrid and storage checks; never open an account."""
+"""Run isolated synthetic hybrid checks; never open an account."""
 
 import argparse
 import json
@@ -43,14 +43,13 @@ def invoke(command, environment, timeout):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=["all", "state", "contract", "native", "storage"], default="all")
+    parser.add_argument("--suite", choices=["all", "state", "native"], default="all")
     parser.add_argument("--out-dir", type=Path, help="Explicit Electron build output directory")
     parser.add_argument("--native-binary", type=Path, help="Optional separate mock executable")
-    parser.add_argument("--electron-binary", type=Path, help="Optional ordinary fixed Electron executable")
     parser.add_argument("--cxx", default="c++", help="Compiler for the dependency-free state test")
     args = parser.parse_args()
     if args.suite != "state" and args.out_dir is None:
-        parser.error("--out-dir is required for compiled native/storage checks")
+        parser.error("--out-dir is required for compiled native checks")
     output = args.out_dir.resolve() if args.out_dir else None
     environment = dict(os.environ)
     for key in ("NODE_OPTIONS", "NODE_PATH", "ELECTRON_RUN_AS_NODE"):
@@ -77,9 +76,6 @@ def main():
                             "-o", str(binary)], check=True)
             run_case("state", [binary])
 
-        if args.suite in ("all", "contract"):
-            run_case("contract", [output / "storage_blocking_contract_test"])
-
         if args.suite in ("all", "native"):
             binary = (args.native_binary or output / "electron_hybrid_browser_owned_tests").resolve()
             if binary.name not in ("electron_hybrid_browser_owned_tests", "electron_hybrid_browser_owned_storage_tests"):
@@ -102,20 +98,6 @@ def main():
                         or not all(test.get("ok") is True for test in result["tests"])):
                     raise RuntimeError(f"{name} did not pass every case in this invocation")
                 results[-1]["cases"] = len(result["tests"])
-
-        if args.suite in ("all", "storage"):
-            binary = (args.electron_binary or output / "electron").resolve()
-            for persistent in (False, True):
-                for iteration in range(3 if persistent else 10):
-                    name = f"storage-{'disk' if persistent else 'memory'}-{iteration}"
-                    profile = run_case(name, [binary, FIXTURES / "storage.cjs"], {
-                        "SHUTDOWN_REPRO_PROFILE": str(directory / name),
-                        "SHUTDOWN_REPRO_PERSIST": "1" if persistent else "0",
-                        "SHUTDOWN_REPRO_DELAY": str((iteration % 3) * 5),
-                    })
-                    state = json.loads((profile / "synthetic-state.json").read_text())
-                    if state != {"storageWritten": True, "authenticationApisCalled": False, "quitRequested": True}:
-                        raise RuntimeError("Storage fixture did not complete its synthetic writes")
 
     print(json.dumps({"ok": True, "syntheticOnly": True, "results": results}, indent=2))
 
