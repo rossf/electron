@@ -1,55 +1,81 @@
-# Fork CI status and maintenance
+# Fork source checks
 
-The CI-only [PR #3](https://github.com/rossf/electron/pull/3) was approved and
-merged into protected fork `main` as
-`30c3748e8dc756851b78258c352df919dee9e392`. Actions is enabled. The earlier
-activation blockers were resolved; they are not the current repository state.
+The fork uses a bounded Ubuntu workflow for source validation. Native builds
+and synthetic browser tests remain separate local validation steps.
 
-## Active check and coverage
+## Coverage
 
-`Fork hybrid state checks` is the only active registered workflow. Its
-five-minute, read-only `ubuntu-24.04` job checks the exact base/head diff and
-compiles/runs the standalone C++ lifetime-policy test. It does not validate
-native WebAuthn, BLE, V8 lifetime or storage shutdown.
+The candidate workflow runs on this fork's own authentication, storage and CI
+branches targeting `main` or `baseline/electron-v43.7.0-fork-ci`. The explicit
+head allowlist contains `experimental/linux-phone-passkey-preservation`,
+`experimental/linux-phone-passkey-main`, `fix/in-memory-storage-shutdown` and
+`docs/fork-ci-active-status`. Events are `opened`, `reopened` and `synchronize`.
+It checks the exact head against GitHub's resolved merge base:
 
-It runs for `pull_request` events `opened`, `reopened` and `synchronize`,
-targeting `main` or `baseline/electron-v43.7.0-fork-ci`. The PR head must be in
-`rossf/electron` and on one of these authentication branches:
+- Electron's changed-file C++, GN, Python, JavaScript and documentation linters,
+  plus explicit CommonJS lint and JavaScript/TypeScript formatting checks.
+- API declaration generation, the actual upstream TypeScript smoke compiler and
+  documentation TypeScript checks. Authentication heads also compile a small
+  positive/negative check for `setWebAuthnHybridHandler` against the generated API.
+- The standalone C++ lifetime-policy test, when present on that source head.
+- Chromium patch registry consistency. When the storage shutdown patch is
+  present, the complete one-file patch must apply to the source version pinned
+  by that head's DEPS, after earlier patches touching the same file. The check
+  retains all three task traits and rejects extra target files or renames.
 
-- `experimental/linux-phone-passkey-preservation`
-- `experimental/linux-phone-passkey-main`
+Storage applicability validates only the affected file. It does not validate
+an entire Chromium patch stack, compile native code, or reproduce shutdown.
+The standalone policy test does not exercise V8, Bluetooth or native WebAuthn.
+These checks cannot establish real phone interoperability or production safety.
 
-[PR #1's check passed](https://github.com/rossf/electron/actions/runs/37410049000)
-on head `5a1932b2fffd08a14a489a035000349d49f8804d`. Its one Ubuntu job took eight
-seconds, and GitHub reported zero billable milliseconds. New qualifying PR
-updates run automatically. Merely targeting `main` does not qualify a different
-head branch; its state job is skipped. The independent storage-only PR #2 has
-no coverage from this authentication-only job. Its native validation is separate.
+## Candidate validation and rollout
+
+On `docs/fork-ci-active-status`, the candidate harness additionally resolves
+and validates the current PR #1 head, PR #2 head and
+`experimental/linux-phone-passkey-main`. Each job checks out that immutable
+source separately and uses its own lockfile and lint/type configuration. Logs
+record the harness, source, PR base, merge base and dependency identities.
+
+Those matrix results belong to the CI candidate PR. They validate the logged
+source commits; they are not checks attached to PR #1 or #2 and do not rerun
+merely because another branch advances. Continuous checks on those PRs require
+the reviewed CI change on their heads and a new qualifying PR event. The CI
+candidate remains a draft until reviewed and explicitly approved for merging.
 
 The guarded Electron 43 baseline is used for PR #1. The original
-`baseline/electron-v43.7.0-c440db5` reference remains pinned and is not an active
-CI base. The workflow branch filter names the guarded baseline.
+`baseline/electron-v43.7.0-c440db5` reference remains pinned. Do not use that
+unguarded historical reference as a new PR base.
 
-## Repository controls
+## Tools and limits
 
-All 52 inherited registered workflows are manually disabled. Every inherited
-job on the active bases and heads also has the repository guard
-`github.repository == 'electron/electron'`, preserving its original condition.
-The disabled inherited entries in the Actions list do not mean that the
-replacement check is disabled.
+The workflow uses standard `ubuntu-24.04`, read-only token permissions, a
+five-minute preparation job, and at most two concurrent twenty-minute source
+jobs. The sole allowed action remains
+`actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683`, without persisted
+credentials. No extra action, repository secret, cache, artifact upload,
+publishing, external dispatch or paid runner is required.
 
-Repository policy requires SHA pinning and permits only
-`actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683`. Checkout does not
-persist credentials. The workflow has no secrets, cache, artifacts, publishing
-or external dispatch. Default token permissions are read-only and Actions
-cannot approve PR reviews. Main still requires a PR with admin enforcement;
-force-push and deletion remain disallowed.
+The helper downloads an official SHA-256-checked Node 22.23.3 archive and pinned
+depot_tools, then installs the GN revision and checksummed clang-format object
+from the target Chromium's DEPS. Python lint uses pylint 2.17.7; JavaScript
+packages use the source checkout's immutable Yarn lockfile. Package installation
+and dependency failures fail the check. No full Chromium checkout is fetched.
 
-## Maintenance
+All 52 inherited registered workflows remain manually disabled. Their jobs on
+active bases and heads also retain the `electron/electron` repository guard.
+Default token permissions remain read-only, and Actions cannot approve reviews.
+Main requires a PR with admin enforcement; force-push and deletion are disabled.
+Review and guard workflows from any later upstream sync before enabling them.
 
-Keep the job limits, exact action allowlist and disabled inherited workflow
-inventory intact when maintaining this configuration. Review and guard workflows
-arriving from a later upstream sync before they become active event sources.
-Do not use old unguarded baseline references as new PR bases. Adding useful
-coverage for other branches or storage requires a deliberate, reviewed workflow
-change; this configuration does not claim full fork CI coverage.
+## Local reproduction
+
+Use a disposable workspace containing the target at `src/electron`, and keep
+the candidate harness in a separate checkout. The helper's `setup` phase writes
+small build-tool files alongside the source, installs locked packages and emits
+PATH/environment entries using `GITHUB_PATH` and `GITHUB_ENV`. It is intended
+for a fresh CI workspace, not an existing Chromium build tree.
+
+Run `python3 script/test_fork_ci.py` in the harness for the offline patch-order
+and validation tests. The workflow records the exact commands for `setup`,
+`lint`, `types`, `state` and `storage`, including the source and comparison SHA.
+The authentication and storage documents describe their separate native runners.
