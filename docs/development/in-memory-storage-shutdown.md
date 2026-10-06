@@ -8,9 +8,9 @@ normal Chromium dependency patch and `.patches` list.
 
 This draft is based on Electron main `6b48d9813bd791453c7b57812a5395c693ba3e14`,
 which pins Chromium `156.0.8078.3`. The pinned storage source still lacks the
-trait and the patch applies cleanly. Native compilation and runtime validation
-on this version are pending. The patch has not been submitted or landed in
-Chromium; its message states the removal condition.
+trait and the patch applies cleanly. A separate Linux testing build and the
+synthetic checks below passed on 2026-10-06. The patch has not been submitted
+or landed in Chromium; its message states the removal condition.
 
 ## Reproduce
 
@@ -46,3 +46,21 @@ The independent authentication experiment's successful manual and native checks
 used a combined build containing both changes. This PR includes no authentication
 implementation. No profiles, credentials, logs, dumps or binaries are published.
 Upstream licensing and notices are retained; this work used Codex assistance.
+
+## Current-main validation
+
+The tested storage source was `22e87638d455cb036bc948312d2836846bfa2644`,
+combined with the independent authentication source
+`cc41beacdce46acee8a2e5245d037fe3f7be6904` on the Electron/Chromium bases above.
+Ordinary Electron and the production storage contract executable built, and
+both passed GN dependency checks. The contract test, ten in-memory shutdowns
+and three disk-backed shutdowns all passed with DCHECKs and sandboxing retained.
+The storage fixture made no authentication API calls; this was a combined build,
+not a separate storage-only binary. No real account, profile or credential was used.
+
+Fork source CI separately checks lint, real generated API/TypeScript compilation,
+the patch registry and one-file applicability against pinned Chromium after any
+predecessor patches touching that file. It does not compile Chromium or establish
+runtime shutdown behavior. See [fork CI controls](fork-ci-activation.md) and the
+exact source SHA in the relevant run. Native results do not establish non-Linux
+compatibility or eliminate every shutdown race.
