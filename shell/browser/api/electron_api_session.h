@@ -210,7 +210,7 @@ class Session final : public gin::Wrappable<Session>,
  private:
   class HybridOwner;
   // The native peer releases independent V8 callback roots outside GC sweeping.
-  NativePeer<Session>::Ptr<HybridOwner> hybrid_owner_;
+  std::unique_ptr<HybridOwner, NativePeerBase::Deleter> hybrid_owner_;
   void SetDisplayMediaRequestHandler(v8::Isolate* isolate,
                                      v8::Local<v8::Value> val);
 
