@@ -22,7 +22,8 @@ permissions: {}
 
 jobs:
   setup:
-    if: github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron')
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -37,6 +38,8 @@ jobs:
         override: ${{ inputs.build-image-sha }}
 
   checkout-linux:
+    if: >-
+      github.repository == 'electron/electron'
     needs: setup
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
@@ -62,6 +65,8 @@ jobs:
   # Build the patched siso binary in parallel with checkout-linux; the
   # publish jobs consume the linux-amd64 artifact via SISO_PATH.
   build-siso:
+    if: >-
+      github.repository == 'electron/electron'
     needs: setup
     uses: ./.github/workflows/pipeline-segment-build-siso.yml
     permissions:
@@ -70,6 +75,8 @@ jobs:
       host: linux-amd64
 
   publish-x64:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-publish.yml
     permissions:
       artifact-metadata: write
@@ -92,6 +99,8 @@ jobs:
     secrets: inherit
 
   publish-arm:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-publish.yml
     permissions:
       artifact-metadata: write
@@ -114,6 +123,8 @@ jobs:
     secrets: inherit
 
   publish-arm64:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-publish.yml
     permissions:
       artifact-metadata: write

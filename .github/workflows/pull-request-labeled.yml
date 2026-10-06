@@ -13,7 +13,8 @@ permissions: {}
 jobs:
   pull-request-labeled-backport-requested:
     name: backport/requested label added
-    if: github.event.label.name == 'backport/requested 🗳'
+    if: >-
+      github.repository == 'electron/electron' && (github.event.label.name == 'backport/requested 🗳')
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -31,7 +32,8 @@ jobs:
             }
   pull-request-labeled-deprecation-review-complete:
     name: deprecation-review/complete label added
-    if: github.event.label.name == 'deprecation-review/complete ✅'
+    if: >-
+      github.repository == 'electron/electron' && (github.event.label.name == 'deprecation-review/complete ✅')
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -50,7 +52,8 @@ jobs:
           field-value: ✅ Reviewed
   pull-request-labeled-ai-pr:
     name: ai-pr label added
-    if: github.event.label.name == 'ai-pr' && github.event.pull_request.state != 'closed'
+    if: >-
+      github.repository == 'electron/electron' && (github.event.label.name == 'ai-pr' && github.event.pull_request.state != 'closed')
     runs-on: ubuntu-latest
     permissions: {}
     steps:

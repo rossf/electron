@@ -29,6 +29,8 @@ permissions: {}
 
 jobs:
   build:
+    if: >-
+      github.repository == 'electron/electron'
     runs-on: ubuntu-latest
     permissions:
       contents: read

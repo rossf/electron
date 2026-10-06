@@ -33,6 +33,8 @@ permissions: {}
 
 jobs:
   collect:
+    if: >-
+      github.repository == 'electron/electron'
     runs-on: ${{ inputs.collect-runs-on }}
     container: ${{ fromJSON(inputs.collect-container) }}
     permissions:

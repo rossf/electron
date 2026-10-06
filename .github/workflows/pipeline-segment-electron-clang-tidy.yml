@@ -36,6 +36,8 @@ env:
 
 jobs:
   clang-tidy:
+    if: >-
+      github.repository == 'electron/electron'
     defaults:
       run:
         shell: bash
