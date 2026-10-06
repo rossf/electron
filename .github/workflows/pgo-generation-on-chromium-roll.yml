@@ -20,7 +20,8 @@ permissions: {}
 jobs:
   dispatch-pgo-generation:
     name: Dispatch PGO Generation
-    if: github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron')
     runs-on: ubuntu-latest
     # Rapid successive DEPS pushes to the same branch supersede each other so
     # only the newest push dispatches. Note this only cancels this detector

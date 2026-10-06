@@ -19,7 +19,8 @@ permissions: {}
 jobs:
   check-for-non-maintainer-dependency-change:
     name: Check for disallowed non-maintainer change
-    if: ${{ github.event.pull_request.user.type != 'Bot' && !github.event.pull_request.draft }}
+    if: >-
+      github.repository == 'electron/electron' && (github.event.pull_request.user.type != 'Bot' && !github.event.pull_request.draft)
     permissions:
       contents: read
       pull-requests: write

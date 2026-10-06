@@ -28,6 +28,8 @@ permissions: {}
 
 jobs:
   setup:
+    if: >-
+      github.repository == 'electron/electron'
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -46,7 +48,8 @@ jobs:
   # Checkout Jobs
   checkout-macos:
     needs: setup
-    if: ${{ !inputs.skip-macos }}
+    if: >-
+      github.repository == 'electron/electron' && (!inputs.skip-macos)
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
       contents: read
@@ -74,7 +77,8 @@ jobs:
 
   checkout-linux:
     needs: setup
-    if: ${{ !inputs.skip-linux }}
+    if: >-
+      github.repository == 'electron/electron' && (!inputs.skip-linux)
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
       contents: read
@@ -99,7 +103,8 @@ jobs:
 
   checkout-windows:
     needs: setup
-    if: ${{ !inputs.skip-windows }}
+    if: >-
+      github.repository == 'electron/electron' && (!inputs.skip-windows)
     runs-on: electron-arc-centralus-linux-amd64-32core
     permissions:
       contents: read
@@ -133,6 +138,8 @@ jobs:
   # host's build. The build jobs consume the host-matching artifact via
   # SISO_PATH.
   build-siso-macos:
+    if: >-
+      github.repository == 'electron/electron'
     needs: setup
     uses: ./.github/workflows/pipeline-segment-build-siso.yml
     permissions:
@@ -141,6 +148,8 @@ jobs:
       host: darwin-arm64
 
   build-siso-linux:
+    if: >-
+      github.repository == 'electron/electron'
     needs: setup
     uses: ./.github/workflows/pipeline-segment-build-siso.yml
     permissions:
@@ -149,6 +158,8 @@ jobs:
       host: linux-amd64
 
   build-siso-windows:
+    if: >-
+      github.repository == 'electron/electron'
     needs: setup
     uses: ./.github/workflows/pipeline-segment-build-siso.yml
     permissions:
@@ -157,6 +168,8 @@ jobs:
       host: windows-amd64
 
   macos:
+    if: >-
+      github.repository == 'electron/electron'
     name: macos-${{ matrix.target-arch }}-${{ matrix.target-variant }}
     needs: [checkout-macos, build-siso-macos]
     permissions:
@@ -199,6 +212,8 @@ jobs:
       SUDOWOODO_EXCHANGE_URL: ${{ secrets.SUDOWOODO_EXCHANGE_URL }}
 
   linux:
+    if: >-
+      github.repository == 'electron/electron'
     name: linux-${{ matrix.target-arch }}
     needs: [setup, checkout-linux, build-siso-linux]
     permissions:
@@ -235,6 +250,8 @@ jobs:
       SUDOWOODO_EXCHANGE_URL: ${{ secrets.SUDOWOODO_EXCHANGE_URL }}
 
   windows:
+    if: >-
+      github.repository == 'electron/electron'
     name: windows-${{ matrix.target-arch }}
     needs: [checkout-windows, build-siso-windows]
     permissions:
