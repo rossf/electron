@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Electron contributors.
+// Use of this source code is governed by the MIT license that can be
+// found in the LICENSE file.
+
 // Test-only linked binding. Never linked into the production Electron target.
 #include <memory>
 #include <set>
@@ -42,11 +46,13 @@ struct ProbeState {
 class Discovery final : public device::FidoDeviceDiscovery {
  public:
   Discovery(Transport transport, std::shared_ptr<ProbeState> state)
-      : FidoDeviceDiscovery(transport), state_(std::move(state)),
+      : FidoDeviceDiscovery(transport),
+        state_(std::move(state)),
         usb_(transport == Transport::kUsbHumanInterfaceDevice) {
     ++state_->live;
   }
   ~Discovery() override { --state_->live; }
+
  private:
   void StartInternal() override {
     if (usb_) {
@@ -54,11 +60,13 @@ class Discovery final : public device::FidoDeviceDiscovery {
       config.internal_uv_support = true;
       config.resident_key_support = true;
       config.user_verification_succeeds = true;
-      AddDevice(std::make_unique<device::VirtualCtap2Device>(state_->device_state,
-                                                          config));
+      AddDevice(std::make_unique<device::VirtualCtap2Device>(
+          state_->device_state, config));
     }
-    if (usb_) ++state_->usb_started;
-    else ++state_->hybrid_started;
+    if (usb_)
+      ++state_->usb_started;
+    else
+      ++state_->hybrid_started;
     // FidoDeviceDiscovery::Start has already posted this operation.
     NotifyDiscoveryStarted(true);
   }
@@ -68,7 +76,8 @@ class Discovery final : public device::FidoDeviceDiscovery {
 
 class Factory final : public device::FidoDiscoveryFactory {
  public:
-  explicit Factory(std::shared_ptr<ProbeState> state) : state_(std::move(state)) {}
+  explicit Factory(std::shared_ptr<ProbeState> state)
+      : state_(std::move(state)) {}
   // Deliberately leave IsTestOverride false: test the embedder's native path.
   std::vector<std::unique_ptr<device::FidoDiscoveryBase>> Create(
       Transport transport) override {
@@ -79,15 +88,19 @@ class Factory final : public device::FidoDiscoveryFactory {
     return {};  // Never call the base factory for any transport.
   }
   std::optional<std::unique_ptr<device::FidoDiscoveryBase>>
-  MaybeCreateEnclaveDiscovery() override { return std::nullopt; }
-  void set_cable_data(device::FidoRequestType,
-      const std::optional<std::array<uint8_t, device::cablev2::kQRKeySize>>& key)
-      override {
+  MaybeCreateEnclaveDiscovery() override {
+    return std::nullopt;
+  }
+  void set_cable_data(
+      device::FidoRequestType,
+      const std::optional<std::array<uint8_t, device::cablev2::kQRKeySize>>&
+          key) override {
     CHECK(key.has_value());
     ++state_->configured;
     state_->hybrid_configured = true;
     // No retained QR key, network factory invocation, tunnel or Bluetooth scan.
   }
+
  private:
   std::shared_ptr<ProbeState> state_;
 };
@@ -95,8 +108,10 @@ class Factory final : public device::FidoDiscoveryFactory {
 struct Harness {
   std::shared_ptr<ProbeState> state = std::make_shared<ProbeState>();
   scoped_refptr<testing::StrictMock<device::MockBluetoothAdapter>> adapter;
-  std::unique_ptr<device::BluetoothAdapterFactory::GlobalOverrideValues> overrides;
-  std::unique_ptr<content::ScopedAuthenticatorEnvironmentForTesting> environment;
+  std::unique_ptr<device::BluetoothAdapterFactory::GlobalOverrideValues>
+      overrides;
+  std::unique_ptr<content::ScopedAuthenticatorEnvironmentForTesting>
+      environment;
 };
 std::unique_ptr<Harness>& Current() {
   static base::NoDestructor<std::unique_ptr<Harness>> current;
@@ -110,7 +125,8 @@ void Install(int process_id, int routing_id, gin::Arguments* args) {
       frame->GetLastCommittedOrigin().scheme() != "http" ||
       frame->GetLastCommittedOrigin().host() != "localhost" ||
       device::BluetoothAdapterFactory::HasSharedInstanceForTesting()) {
-    args->ThrowTypeError("Requires fresh test process and active disposable localhost frame");
+    args->ThrowTypeError(
+        "Requires fresh test process and active disposable localhost frame");
     return;
   }
   auto harness = std::make_unique<Harness>();
@@ -121,33 +137,52 @@ void Install(int process_id, int routing_id, gin::Arguments* args) {
       [](std::weak_ptr<ProbeState> weak, device::VirtualFidoDevice*) {
         auto value = weak.lock();
         return value && value->press;
-      }, std::weak_ptr<ProbeState>(state));
-  harness->adapter = base::MakeRefCounted<
-      testing::StrictMock<device::MockBluetoothAdapter>>();
+      },
+      std::weak_ptr<ProbeState>(state));
+  harness->adapter =
+      base::MakeRefCounted<testing::StrictMock<device::MockBluetoothAdapter>>();
   auto& adapter = *harness->adapter;
   using testing::_;
   using testing::AnyNumber;
-  EXPECT_CALL(adapter, IsPresent()).Times(AnyNumber()).WillRepeatedly(testing::Return(true));
-  EXPECT_CALL(adapter, IsPowered()).Times(AnyNumber()).WillRepeatedly([state] { return state->powered; });
-  EXPECT_CALL(adapter, GetOsPermissionStatus()).Times(AnyNumber())
+  EXPECT_CALL(adapter, IsPresent())
+      .Times(AnyNumber())
+      .WillRepeatedly(testing::Return(true));
+  EXPECT_CALL(adapter, IsPowered()).Times(AnyNumber()).WillRepeatedly([state] {
+    return state->powered;
+  });
+  EXPECT_CALL(adapter, GetOsPermissionStatus())
+      .Times(AnyNumber())
       .WillRepeatedly(testing::Return(Adapter::PermissionStatus::kAllowed));
-  EXPECT_CALL(adapter, CanPower()).Times(AnyNumber()).WillRepeatedly(testing::Return(false));
-  EXPECT_CALL(adapter, AddObserver(_)).Times(AnyNumber()).WillRepeatedly(
-      [state](Adapter::Observer* observer) { CHECK(state->observers.insert(observer).second); });
-  EXPECT_CALL(adapter, RemoveObserver(_)).Times(AnyNumber()).WillRepeatedly(
-      [state](Adapter::Observer* observer) { CHECK_EQ(state->observers.erase(observer), 1u); });
+  EXPECT_CALL(adapter, CanPower())
+      .Times(AnyNumber())
+      .WillRepeatedly(testing::Return(false));
+  EXPECT_CALL(adapter, AddObserver(_))
+      .Times(AnyNumber())
+      .WillRepeatedly([state](Adapter::Observer* observer) {
+        CHECK(state->observers.insert(observer).second);
+      });
+  EXPECT_CALL(adapter, RemoveObserver(_))
+      .Times(AnyNumber())
+      .WillRepeatedly([state](Adapter::Observer* observer) {
+        CHECK_EQ(state->observers.erase(observer), 1u);
+      });
   // Unlisted methods (power, permissions, scan, connect) are strict failures.
-  harness->overrides = device::BluetoothAdapterFactory::Get()->InitGlobalOverrideValues();
+  harness->overrides =
+      device::BluetoothAdapterFactory::Get()->InitGlobalOverrideValues();
   harness->overrides->SetLESupported(true);
   device::BluetoothAdapterFactory::SetAdapterForTesting(harness->adapter);
-  harness->environment = std::make_unique<content::ScopedAuthenticatorEnvironmentForTesting>(
-      std::make_unique<Factory>(state));
+  harness->environment =
+      std::make_unique<content::ScopedAuthenticatorEnvironmentForTesting>(
+          std::make_unique<Factory>(state));
   Current() = std::move(harness);
 }
 
 void Prepare(bool powered, bool press, gin::Arguments* args) {
-  if (!Current() || Current()->state->live || !Current()->state->observers.empty()) {
-    args->ThrowTypeError("Cannot reset while native request owns discovery or adapter observers");
+  if (!Current() || Current()->state->live ||
+      !Current()->state->observers.empty()) {
+    args->ThrowTypeError(
+        "Cannot reset while native request owns discovery or adapter "
+        "observers");
     return;
   }
   auto& state = *Current()->state;
@@ -158,7 +193,10 @@ void Prepare(bool powered, bool press, gin::Arguments* args) {
 }
 
 void SetPowered(bool powered, gin::Arguments* args) {
-  if (!Current()) { args->ThrowTypeError("Harness not installed"); return; }
+  if (!Current()) {
+    args->ThrowTypeError("Harness not installed");
+    return;
+  }
   auto state = Current()->state;
   auto adapter = Current()->adapter;  // Keep alive across reentrant teardown.
   state->powered = powered;
@@ -173,28 +211,38 @@ v8::Local<v8::Value> Stats(v8::Isolate* isolate) {
   CHECK(Current());
   auto& state = *Current()->state;
   return gin::DataObjectBuilder(isolate)
-      .Set("configured", state.configured).Set("live", state.live)
-      .Set("usbStarted", state.usb_started).Set("hybridStarted", state.hybrid_started)
+      .Set("configured", state.configured)
+      .Set("live", state.live)
+      .Set("usbStarted", state.usb_started)
+      .Set("hybridStarted", state.hybrid_started)
       .Set("observers", static_cast<int>(state.observers.size()))
-      .Set("mockFailed", testing::UnitTest::GetInstance()->Failed()).Build();
+      .Set("mockFailed", testing::UnitTest::GetInstance()->Failed())
+      .Build();
 }
 
 void Uninstall(gin::Arguments* args) {
-  if (!Current() || Current()->state->live || !Current()->state->observers.empty()) {
-    args->ThrowTypeError("Abort all ceremonies and drain teardown before uninstall"); return;
+  if (!Current() || Current()->state->live ||
+      !Current()->state->observers.empty()) {
+    args->ThrowTypeError(
+        "Abort all ceremonies and drain teardown before uninstall");
+    return;
   }
-  bool ok = testing::Mock::VerifyAndClearExpectations(Current()->adapter.get()) &&
-            !testing::UnitTest::GetInstance()->Failed();
+  bool ok =
+      testing::Mock::VerifyAndClearExpectations(Current()->adapter.get()) &&
+      !testing::UnitTest::GetInstance()->Failed();
   Current()->environment.reset();
   Current()->adapter.reset();
   CHECK(!device::BluetoothAdapterFactory::HasSharedInstanceForTesting());
   Current()->overrides.reset();
   Current().reset();
-  if (!ok || testing::UnitTest::GetInstance()->Failed()) args->ThrowTypeError("Mock adapter violation");
+  if (!ok || testing::UnitTest::GetInstance()->Failed())
+    args->ThrowTypeError("Mock adapter violation");
 }
 
-void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Value>,
-                v8::Local<v8::Context> context, void*) {
+void Initialize(v8::Local<v8::Object> exports,
+                v8::Local<v8::Value>,
+                v8::Local<v8::Context> context,
+                void*) {
   gin_helper::Dictionary dict(v8::Isolate::GetCurrent(), exports);
   dict.SetMethod("install", &Install);
   dict.SetMethod("prepare", &Prepare);
@@ -203,4 +251,5 @@ void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Value>,
   dict.SetMethod("uninstall", &Uninstall);
 }
 }  // namespace
-NODE_LINKED_BINDING_CONTEXT_AWARE(electron_hybrid_browser_owned_testing, Initialize)
+NODE_LINKED_BINDING_CONTEXT_AWARE(electron_hybrid_browser_owned_testing,
+                                  Initialize)

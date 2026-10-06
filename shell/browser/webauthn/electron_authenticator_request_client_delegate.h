@@ -10,17 +10,17 @@
 
 #include "base/dcheck_is_on.h"
 #include "base/memory/weak_ptr.h"
-#include "build/build_config.h"
 #include "base/scoped_observation.h"
+#include "build/build_config.h"
 #include "content/public/browser/authenticator_request_client_delegate.h"
 #include "content/public/browser/global_routing_id.h"
-#include "shell/browser/webauthn/hybrid_request_state.h"
 #include "shell/browser/webauthn/hybrid_request_handler.h"
+#include "shell/browser/webauthn/hybrid_request_state.h"
 
 namespace content {
 class RenderFrameHost;
 class StoragePartitionConfig;
-}
+}  // namespace content
 
 namespace network::mojom {
 class NetworkContext;

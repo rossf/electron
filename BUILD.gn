@@ -2084,9 +2084,10 @@ if (is_linux) {
   executable("electron_hybrid_browser_owned_tests") {
     testonly = true
     sources = [
-      "shell/app/hybrid_browser_owned_main_linux.cc",
       "shell/app/environ_linux.cc",
+      "shell/app/hybrid_browser_owned_main_linux.cc",
       "shell/app/uv_stdio_fix.cc",
+      "shell/app/uv_stdio_fix.h",
       "shell/browser/webauthn/hybrid_browser_owned_testing.cc",
     ]
     include_dirs = [
@@ -2105,9 +2106,11 @@ if (is_linux) {
       ":packed_resources",
       "//components/crash/core/app",
       "//content:sandbox_helper_win",
+      "//content/public/browser",
       "//device/bluetooth:mocks",
       "//device/fido",
       "//electron/buildflags",
+      "//gin",
       "//sandbox/linux:chrome_sandbox",
       "//testing/gmock",
       "//testing/gtest",

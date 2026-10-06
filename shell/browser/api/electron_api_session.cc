@@ -974,7 +974,8 @@ void Session::SetWebAuthnHybridHandler(v8::Local<v8::Value> val,
     return;
   }
   // Existing requests retain their own owner snapshot. Removal/replacement
-  // affects only future requests; explicit per-request cancel handles remain live.
+  // affects only future requests; explicit per-request cancel handles remain
+  // live.
   webauthn_hybrid_handler_ = std::move(handler);
 }
 
