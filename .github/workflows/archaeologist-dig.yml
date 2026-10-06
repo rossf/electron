@@ -7,6 +7,8 @@ permissions: {}
 
 jobs:
    archaeologist-dig:
+    if: >-
+      github.repository == 'electron/electron'
     name: Archaeologist Dig
     runs-on: ubuntu-latest
     permissions:

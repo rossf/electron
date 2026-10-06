@@ -10,7 +10,8 @@ permissions: {}
 jobs:
   blocked-issue-commented:
     name: Remove blocked/{need-info,need-repro} on comment
-    if: ${{ !github.event.issue.pull_request && (contains(github.event.issue.labels.*.name, 'blocked/need-repro') || contains(github.event.issue.labels.*.name, 'blocked/need-info ❌')) && github.event.comment.user.type != 'Bot' }}
+    if: >-
+      github.repository == 'electron/electron' && (!github.event.issue.pull_request && (contains(github.event.issue.labels.*.name, 'blocked/need-repro') || contains(github.event.issue.labels.*.name, 'blocked/need-info ❌')) && github.event.comment.user.type != 'Bot')
     runs-on: ubuntu-slim
     steps:
       - name: Get author association
@@ -36,7 +37,8 @@ jobs:
   
   pr-reviewer-requested:
     name: Maintainer requested reviewer on PR
-    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/request-review') && github.event.comment.user.type != 'Bot' }}
+    if: >-
+      github.repository == 'electron/electron' && (github.event.issue.pull_request && startsWith(github.event.comment.body, '/request-review') && github.event.comment.user.type != 'Bot')
     runs-on: ubuntu-slim
     steps:
       - name: Get author association

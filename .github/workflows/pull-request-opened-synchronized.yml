@@ -12,6 +12,8 @@ permissions: {}
 
 jobs:
   check-signed-commits:
+    if: >-
+      github.repository == 'electron/electron'
     name: Check signed commits in PR
     runs-on: ubuntu-slim
     permissions:

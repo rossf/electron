@@ -9,7 +9,8 @@ permissions: {}
 jobs:
   remove-need-issue:
     name: Remove blocked/need-issue label
-    if: github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron')
     runs-on: ubuntu-slim
     permissions: {}
     steps:

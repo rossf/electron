@@ -46,6 +46,8 @@ env:
 
 jobs:
   node-tests:
+    if: >-
+      github.repository == 'electron/electron'
     name: Run Node.js Tests
     runs-on: electron-arc-centralus-linux-amd64-8core
     permissions:
@@ -105,6 +107,8 @@ jobs:
           sleep 60
         done
   nan-tests:
+    if: >-
+      github.repository == 'electron/electron'
     name: Run Nan Tests
     runs-on: electron-arc-centralus-linux-amd64-4core
     permissions:
