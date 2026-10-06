@@ -2,7 +2,7 @@ name: Fork hybrid state checks
 
 on:
   pull_request:
-    branches: [main, baseline/electron-v43.7.0-c440db5]
+    branches: [main, baseline/electron-v43.7.0-fork-ci]
     types: [opened, reopened, synchronize]
 
 permissions:

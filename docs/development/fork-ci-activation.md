@@ -1,39 +1,55 @@
-# Fork CI activation gate
+# Fork CI status and maintenance
 
-Every inherited workflow job is guarded by
+The CI-only [PR #3](https://github.com/rossf/electron/pull/3) was approved and
+merged into protected fork `main` as
+`30c3748e8dc756851b78258c352df919dee9e392`. Actions is enabled. The earlier
+activation blockers were resolved; they are not the current repository state.
+
+## Active check and coverage
+
+`Fork hybrid state checks` is the only active registered workflow. Its
+five-minute, read-only `ubuntu-24.04` job checks the exact base/head diff and
+compiles/runs the standalone C++ lifetime-policy test. It does not validate
+native WebAuthn, BLE, V8 lifetime or storage shutdown.
+
+It runs for `pull_request` events `opened`, `reopened` and `synchronize`,
+targeting `main` or `baseline/electron-v43.7.0-fork-ci`. The PR head must be in
+`rossf/electron` and on one of these authentication branches:
+
+- `experimental/linux-phone-passkey-preservation`
+- `experimental/linux-phone-passkey-main`
+
+[PR #1's check passed](https://github.com/rossf/electron/actions/runs/37410049000)
+on head `5a1932b2fffd08a14a489a035000349d49f8804d`. Its one Ubuntu job took eight
+seconds, and GitHub reported zero billable milliseconds. New qualifying PR
+updates run automatically. Merely targeting `main` does not qualify a different
+head branch; its state job is skipped. The independent storage-only PR #2 has
+no coverage from this authentication-only job. Its native validation is separate.
+
+The guarded Electron 43 baseline is used for PR #1. The original
+`baseline/electron-v43.7.0-c440db5` reference remains pinned and is not an active
+CI base. The workflow branch filter names the guarded baseline.
+
+## Repository controls
+
+All 52 inherited registered workflows are manually disabled. Every inherited
+job on the active bases and heads also has the repository guard
 `github.repository == 'electron/electron'`, preserving its original condition.
-One five-minute read-only `ubuntu-24.04` PR check is staged for the fork's
-authentication branches. It uses SHA-pinned checkout without persisted
-credentials and runs only diff whitespace and the standalone C++ state test.
-It has no secrets, cache, artifacts, publishing or external dispatch.
+The disabled inherited entries in the Actions list do not mean that the
+replacement check is disabled.
 
-Actions is still disabled. The API returned an empty registered-workflow list,
-and disabling `build.yml` by filename returned 404 despite the tracked YAML.
-GitHub also returned 409 when asked to stage an action allowlist with Actions
-disabled: `allowed_actions` requires `enabled: true`. No global activation was
-attempted. Default workflow permissions are already read-only, and Actions
-cannot approve PR reviews.
+Repository policy requires SHA pinning and permits only
+`actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683`. Checkout does not
+persist credentials. The workflow has no secrets, cache, artifacts, publishing
+or external dispatch. Default token permissions are read-only and Actions
+cannot approve PR reviews. Main still requires a PR with admin enforcement;
+force-push and deletion remain disallowed.
 
-## Safe activation sequence
+## Maintenance
 
-1. Review and explicitly approve merging this configuration PR into protected
-   fork `main`. This draft does not merge or bypass that protection.
-2. While Actions remains off, apply the same guards to every active PR head and
-   base. Keep the original Electron 43 baseline reference intact, create a
-   guard-only baseline branch, and retarget the authentication PR to it with
-   identical guards on its head. Verify that the comparison remains focused on
-   authentication and that the original baseline code is unchanged.
-3. Keep default workflow permissions read-only and Actions PR approval disabled.
-4. Only after every active event source is guarded, enable the repository with
-   `allowed_actions: selected` and SHA pinning required, then set its allowlist
-   to exactly the checkout SHA used here. Enumerate workflows and manually
-   disable every inherited workflow. Read back
-   the entire inventory. The source guards prevent inherited jobs from running
-   during registration, including jobs using `always()`.
-5. Confirm only the fork check is active, trigger normal PR synchronization,
-   and verify its bounded read-only run. Treat that result as a state/diff check,
-   never as native WebAuthn, BLE, V8 or shutdown validation.
-
-Review and guard workflows arriving from a later upstream sync before they
-become active event sources. Do not use old baseline references as new PR bases
-until guarded. No paid or inherited runners are needed.
+Keep the job limits, exact action allowlist and disabled inherited workflow
+inventory intact when maintaining this configuration. Review and guard workflows
+arriving from a later upstream sync before they become active event sources.
+Do not use old unguarded baseline references as new PR bases. Adding useful
+coverage for other branches or storage requires a deliberate, reviewed workflow
+change; this configuration does not claim full fork CI coverage.
