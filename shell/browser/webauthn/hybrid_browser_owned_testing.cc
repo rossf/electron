@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 // Test-only linked binding. Never linked into the production Electron target.
+#include <cstdio>
 #include <memory>
 #include <set>
 #include <string>
@@ -297,12 +298,10 @@ v8::Local<v8::Value> Stats(v8::Isolate* isolate) {
       .Build();
 }
 
-void Uninstall(gin::Arguments* args) {
+bool TearDownHarness() {
   if (!Current() || Current()->state->live ||
       !Current()->state->observers.empty()) {
-    args->ThrowTypeError(
-        "Abort all ceremonies and drain teardown before uninstall");
-    return;
+    return false;
   }
   bool ok =
       testing::Mock::VerifyAndClearExpectations(Current()->adapter.get()) &&
@@ -312,8 +311,15 @@ void Uninstall(gin::Arguments* args) {
   CHECK(!device::BluetoothAdapterFactory::HasSharedInstanceForTesting());
   Current()->overrides.reset();
   Current().reset();
-  if (!ok || testing::UnitTest::GetInstance()->Failed())
-    args->ThrowTypeError("Mock adapter violation");
+  return ok && !testing::UnitTest::GetInstance()->Failed();
+}
+
+void Uninstall(gin::Arguments* args) {
+  if (!TearDownHarness()) {
+    args->ThrowTypeError(
+        "Abort all ceremonies, drain teardown and satisfy adapter expectations "
+        "before uninstall");
+  }
 }
 
 void Initialize(v8::Local<v8::Object> exports,
@@ -331,5 +337,17 @@ void Initialize(v8::Local<v8::Object> exports,
   dict.SetMethod("uninstall", &Uninstall);
 }
 }  // namespace
+
+// Called only by the isolated mock executable, after normal native shutdown.
+// No V8 values or GC-managed objects are touched here.
+bool FinalizeElectronHybridBrowserOwnedTesting() {
+  if (!Current())
+    return true;
+  if (!TearDownHarness())
+    return false;
+  std::puts("electron-hybrid-test: shutdown teardown verified");
+  return true;
+}
+
 NODE_LINKED_BINDING_CONTEXT_AWARE(electron_hybrid_browser_owned_testing,
                                   Initialize)

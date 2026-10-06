@@ -216,17 +216,6 @@ app
       );
     }
     if (mode === 'shutdown') {
-      app.on('will-quit', () => {
-        try {
-          assert.equal(binding.stats().live, 0);
-          assert.equal(binding.stats().observers, 0);
-          binding.uninstall();
-          result.shutdownTeardownVerified = true;
-          save();
-        } catch (error) {
-          fatal(error);
-        }
-      });
       const win = await window();
       binding.prepareCreation(true, false, true, true, true, true);
       ses.setWebAuthnHybridHandler((details) => {

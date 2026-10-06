@@ -20,15 +20,18 @@ def no_core():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 
-def invoke(command, environment, timeout):
-    with subprocess.Popen(command, env=environment, stdout=subprocess.DEVNULL,
+def invoke(command, environment, timeout, expected_output=None):
+    with subprocess.Popen(command, env=environment,
+                          stdout=subprocess.PIPE if expected_output else subprocess.DEVNULL,
                           stderr=subprocess.PIPE, start_new_session=True) as child:
         try:
-            _, errors = child.communicate(timeout=timeout)
+            output, errors = child.communicate(timeout=timeout)
             if child.returncode:
                 # Only synthetic fixtures run here. Keep diagnostics on the
                 # local terminal, not in committed result files or artifacts.
                 print(errors.decode(errors="replace")[-4000:], file=sys.stderr)
+            if expected_output and expected_output not in (output or b""):
+                raise RuntimeError("Synthetic child did not verify native shutdown teardown")
             return child.returncode
         except subprocess.TimeoutExpired:
             os.killpg(child.pid, signal.SIGTERM)
@@ -58,12 +61,12 @@ def main():
     with tempfile.TemporaryDirectory(prefix="electron-hybrid-tests-") as temporary:
         directory = Path(temporary)
 
-        def run_case(name, command, extra=None, timeout=30):
+        def run_case(name, command, extra=None, timeout=30, expected_output=None):
             profile = directory / name
             profile.mkdir()
             env = {**environment, "XDG_CONFIG_HOME": str(profile / "config"),
                    "XDG_CACHE_HOME": str(profile / "cache"), **(extra or {})}
-            status = invoke([str(value) for value in command], env, timeout)
+            status = invoke([str(value) for value in command], env, timeout, expected_output)
             results.append({"name": name, "exitCode": status, "ok": status == 0})
             if status != 0:
                 raise RuntimeError(f"{name} exited with status {status}")
@@ -112,15 +115,16 @@ def main():
                     "HYBRID_TEST_RESULT": str(result_file),
                     "DBUS_SESSION_BUS_ADDRESS": "unix:path=/nonexistent-passkey-probe",
                     "DBUS_SYSTEM_BUS_ADDRESS": "unix:path=/nonexistent-passkey-probe",
-                }, timeout=180)
+                }, timeout=180, expected_output=(
+                    b"electron-hybrid-test: shutdown teardown verified"
+                    if mode == "shutdown" else None))
                 result = json.loads(result_file.read_text())
                 if (result.get("runId") != run_id or result.get("completed") is not True
                         or result.get("ok") is not True or not result.get("tests")
                         or not all(test.get("ok") is True for test in result["tests"])):
                     raise RuntimeError(f"{name} did not pass every case in this invocation")
-                if mode == "shutdown" and (result.get("shutdownRequested") is not True
-                        or result.get("shutdownTeardownVerified") is not True):
-                    raise RuntimeError("Creation app quit did not verify native teardown")
+                if mode == "shutdown" and result.get("shutdownRequested") is not True:
+                    raise RuntimeError("Creation fixture did not request app quit")
                 results[-1]["cases"] = len(result["tests"])
 
     print(json.dumps({"ok": True, "syntheticOnly": True, "results": results}, indent=2))

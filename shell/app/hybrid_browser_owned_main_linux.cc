@@ -47,6 +47,7 @@ void PreallocateFileDescriptorTable() {
 }  // namespace
 
 void _register_electron_hybrid_browser_owned_testing();
+bool FinalizeElectronHybridBrowserOwnedTesting();
 
 int main(int argc, char* argv[]) {
   _register_electron_hybrid_browser_owned_testing();
@@ -70,5 +71,6 @@ int main(int argc, char* argv[]) {
   content::ContentMainParams params{&delegate};
   params.argc = argc;
   params.argv = original_argv;
-  return content::ContentMain(std::move(params));
+  const int status = content::ContentMain(std::move(params));
+  return FinalizeElectronHybridBrowserOwnedTesting() ? status : 1;
 }

@@ -128,11 +128,21 @@ before the platform constraint arrives; those tests assert no hybrid device or U
 Lifecycle cases cover synchronous, duplicate and stale cancel handles, handler
 false/Promise/throw, owner replacement, page abort, timeout, navigation, destroyed
 windows, removed iframes and app quit with a pending creation. The shutdown case
-marks its pending synthetic request before app quit; the runner also requires a
-clean process exit. It does not require a terminal callback during app shutdown.
+marks its pending synthetic request before app quit; after native shutdown the
+isolated executable verifies that discoveries and observers are gone and releases
+the mock environment. The runner requires that completion marker and a clean exit. It does not require a terminal callback during app shutdown.
 Each invocation uses fresh temporary profiles, a run identifier and result checks.
 The default suite also reruns the unchanged authentication fixture.
 
 These checks validate native integration and lifecycle behavior, not phone
 interoperability, network transport or RP enrollment. Real registration remains a
 user-controlled test, and no laptop artifact is regenerated for this follow-up.
+
+On 2026-10-06 the Linux creation build passed all three GN dependency checks,
+the standalone state test, 26 enabled and four disabled authentication cases,
+33 enabled creation cases, three separate flag controls and pending-creation
+app shutdown with the native teardown marker. The source check also generated
+API declarations and compiled the positive/negative `requestType` TypeScript
+fixture. The build included the separate storage fix for local validation;
+it is not part of the creation PR. CMTG and virtual-override exclusion have
+static/state-gate evidence, not additional browser creation cases.
