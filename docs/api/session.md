@@ -1020,6 +1020,58 @@ win.webContents.session.setCertificateVerifyProc((request, callback) => {
 
 > **NOTE:** The result of this procedure is cached by the network service.
 
+#### `ses.setWebAuthnHybridHandler(handler)` _Linux_ _Experimental_
+
+Experimental prototype; not a production API. Requires the default-off
+process switch `enable-electron-webauthn-hybrid` and a handler registered on this
+session before the request. A process switch without a session handler does not
+configure native hybrid discovery.
+
+* `handler` Function\<boolean\> | null
+  * `details` Object
+    * `requestId` string - Unique identifier for this native ceremony.
+    * `state` string - `ready`, `unavailable`, or `ended`.
+    * `origin` string - Chromium-validated calling origin, except in `ended`.
+    * `relyingPartyId` string - Chromium-validated RP ID, except in `ended`.
+    * `frame` WebFrameMain - Initiating frame, except in `ended`.
+    * `qrCode` string - Native transient QR payload for `ready`; empty for
+      `unavailable`; absent for `ended`. Never log or persist it.
+  * `cancel` Function | undefined - Explicitly cancels the whole native request,
+    including alternative transports. Remains live while unavailable; duplicate
+    or stale calls are inert. Absent for `ended`.
+
+The handler must return literal `true` synchronously to acknowledge
+`ready`/`unavailable` updates. Promises, objects, other values, missing returns
+and exceptions cancel this owned request. The return value for `ended` is
+ignored; exceptions during terminal cleanup are contained.
+
+Registration establishes trusted main-process UI ownership. The native request
+snapshots the handler without running JavaScript during discovery configuration.
+Removing or replacing the session handler affects future requests only; existing
+requests keep their original owner and cancel handle. To withdraw an existing
+request, invoke its cancel function or abort that WebAuthn request. Removing a
+JavaScript callback is not transport cancellation.
+
+The handler runs only after native action callbacks exist. Render QR data only
+for `ready`, in trusted isolated UI showing the supplied RP and origin. For
+`unavailable`, hide the QR while retaining cancellation and allowing other native
+transports to continue. This status does not revoke a previously shown QR, stop
+native discovery, or end the WebAuthn request. BLE recovery may produce another
+`ready` update for the same request. No adapter power or permission change is
+performed by this prototype.
+
+`ended` is posted after native request teardown/observation stop, never from the
+middle of native destruction. Clear the request UI and QR data. This is not proof
+that the RP accepted an assertion. Shutdown may prevent delivery, so close UI on
+session/app shutdown too.
+
+Only modal `navigator.credentials.get()` is configured; creation, conditional
+requests and virtual test overrides are excluded. Chromium retains WebAuthn,
+origin/RP, Permissions Policy, challenge and authenticator processing. This API
+accepts no assertions and cannot change UP/UV requirements. No phone pairing is
+persisted. Existing `select-webauthn-account` handles account selection; never
+silently choose a real credential.
+
 #### `ses.setPermissionRequestHandler(handler)`
 
 * `handler` Function | null

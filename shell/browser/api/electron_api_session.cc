@@ -577,12 +577,26 @@ const void* kElectronApiSessionKey = &kElectronApiSessionKey;
 gin::WrapperInfo Session::kWrapperInfo =
     electron::MakeWrapperInfo(electron::kElectronSession);
 
+class Session::HybridOwner final : public NativePeer<Session> {
+ public:
+  explicit HybridOwner(Session* session) : NativePeer<Session>(session) {
+    StartObservingShutdown();
+  }
+
+  HybridRequestHandler handler;
+
+ private:
+  ~HybridOwner() override = default;
+  void TearDownNative() override { handler.Reset(); }
+};
+
 Session::Session(v8::Isolate* isolate, ElectronBrowserContext* browser_context)
     : isolate_(isolate),
       network_emulation_token_(base::UnguessableToken::Create()),
       network_emulation_client_id_(base::UnguessableToken::Create()),
       browser_context_{browser_context} {
   MicrotasksRunner::AddWrappableObserver(this);
+  hybrid_owner_ = NativePeer<Session>::Create<HybridOwner>(this);
   // Observe DownloadManager to get download notifications.
   browser_context->GetDownloadManager()->AddObserver(this);
 
@@ -987,6 +1001,27 @@ void Session::SetUSBProtectedClassesHandler(v8::Local<v8::Value> val,
   auto* permission_manager = static_cast<ElectronPermissionManager*>(
       browser_context()->GetPermissionControllerDelegate());
   permission_manager->SetProtectedUSBHandler(handler);
+}
+
+HybridRequestHandler Session::GetWebAuthnHybridHandler() const {
+  return hybrid_owner_->is_active() ? hybrid_owner_->handler
+                                    : HybridRequestHandler();
+}
+
+void Session::SetWebAuthnHybridHandler(v8::Local<v8::Value> val,
+                                       gin::Arguments* args) {
+  if (!hybrid_owner_->is_active()) {
+    args->ThrowTypeError("Session has shut down");
+    return;
+  }
+  HybridRequestHandler handler;
+  if (!(val->IsNull() || gin::ConvertFromV8(args->isolate(), val, &handler))) {
+    args->ThrowTypeError("Must pass null or function");
+    return;
+  }
+  // Existing requests retain their own owner snapshot. Removal/replacement
+  // affects only future requests; explicit per-request cancel handles remain live.
+  hybrid_owner_->handler = std::move(handler);
 }
 
 void Session::SetBluetoothPairingHandler(v8::Local<v8::Value> val,
@@ -1865,6 +1900,7 @@ void Session::FillObjectTemplate(v8::Isolate* isolate,
           "setDevicePermissionHandler")
       .SetMethod<&Session::SetUSBProtectedClassesHandler>(
           "setUSBProtectedClassesHandler")
+      .SetMethod<&Session::SetWebAuthnHybridHandler>("setWebAuthnHybridHandler")
       .SetMethod<&Session::SetBluetoothPairingHandler>(
           "setBluetoothPairingHandler")
       .SetMethod<&Session::ClearHostResolverCache>("clearHostResolverCache")
@@ -1945,6 +1981,7 @@ const char* Session::GetHumanReadableName() const {
 }
 
 void Session::OnBeforeMicrotasksRunnerDispose() {
+  hybrid_owner_->Release();
   Dispose();
   weak_factory_.Invalidate();
   browser_context_ = nullptr;

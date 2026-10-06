@@ -537,6 +537,7 @@ source_set("electron_lib") {
     "//content/public/gpu",
     "//content/public/renderer",
     "//content/public/utility",
+    "//crypto",
     "//device/bluetooth",
     "//device/bluetooth/public/cpp",
     "//device/fido",
@@ -553,6 +554,7 @@ source_set("electron_lib") {
     "//services/device/public/cpp/geolocation",
     "//services/device/public/cpp/hid",
     "//services/device/public/mojom",
+    "//services/network/public/mojom",
     "//services/proxy_resolver:lib",
     "//services/video_capture/public/mojom:constants",
     "//services/viz/privileged/mojom/compositing",
@@ -2218,4 +2220,63 @@ if (is_linux && is_official_build) {
     compress_debug_sections = true
     deps = mksnapshot_deps
   }
+}
+
+# Small dependency-free lifetime-policy test. Does not exercise caBLE or V8.
+executable("electron_webauthn_hybrid_state_tests") {
+  testonly = true
+  sources = [ "shell/browser/webauthn/hybrid_request_state_test.cc" ]
+  include_dirs = [ "." ]
+}
+
+# Isolated test executable: production electron_app does not depend on this.
+if (is_linux) {
+  executable("electron_hybrid_browser_owned_tests") {
+    testonly = true
+    sources = [
+      "shell/app/hybrid_browser_owned_main_linux.cc",
+      "shell/app/environ_linux.cc",
+      "shell/app/uv_stdio_fix.cc",
+      "shell/browser/webauthn/hybrid_browser_owned_testing.cc",
+    ]
+    include_dirs = [
+      ".",
+      "//third_party/googletest/src/googlemock/include",
+      "//third_party/googletest/src/googletest/include",
+    ]
+    cflags_cc = [ "-Wno-inconsistent-missing-override" ]
+    configs -= [ "//build/config/compiler:thinlto_optimize_default" ]
+    configs += [ "//build/config/compiler:thinlto_optimize_max" ]
+    deps = electron_app_link_deps + [
+      ":packed_resources",
+      "//device/bluetooth:mocks",
+      "//device/fido",
+      "//sandbox/linux:chrome_sandbox",
+      "//testing/gmock",
+      "//testing/gtest",
+    ]
+    data_deps = [ "//components/crash/core/app:chrome_crashpad_handler" ]
+    if (use_v8_context_snapshot) {
+      public_deps = [ "//tools/v8_context_snapshot" ]
+    }
+    ldflags = [
+      "-pie",
+      "-Wl,--whole-archive",
+      "obj/third_party/electron_node/deps/uv/libuv.a",
+      "-Wl,--no-whole-archive",
+    ]
+    if (!is_component_build && is_component_ffmpeg) {
+      configs += [ "//build/config/gcc:rpath_for_built_shared_libraries" ]
+    }
+  }
+}
+
+# Deterministic in-memory storage task-trait regression, with DCHECKs enabled.
+executable("storage_blocking_contract_test") {
+  testonly = true
+  sources = [ "shell/browser/storage_blocking_test.cc" ]
+  deps = [
+    "//base",
+    "//components/services/storage",
+  ]
 }

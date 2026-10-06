@@ -17,9 +17,16 @@
 #include "content/public/browser/global_routing_id.h"
 #include "device/fido/fido_discovery_base.h"
 #include "device/fido/fido_request_handler_base.h"
+#include "shell/browser/webauthn/hybrid_request_handler.h"
+#include "shell/browser/webauthn/hybrid_request_state.h"
 
 namespace content {
 class RenderFrameHost;
+class StoragePartitionConfig;
+}
+
+namespace network::mojom {
+class NetworkContext;
 }
 
 namespace gin {
@@ -27,6 +34,8 @@ class Arguments;
 }
 
 namespace electron {
+
+class ElectronBrowserContext;
 
 class ElectronAuthenticatorRequestClientDelegate
     : public content::AuthenticatorRequestClientDelegate {
@@ -49,7 +58,28 @@ class ElectronAuthenticatorRequestClientDelegate
   static void SetSimulateUvLockedPinSecurityKeyForTesting(bool enabled);
 #endif
 
+#if DCHECK_IS_ON() && BUILDFLAG(IS_LINUX)
+  // Test-only access to the exact resolver used by native caBLE discovery.
+  static network::mojom::NetworkContext* ResolveHybridNetworkContextForTesting(
+      base::WeakPtr<ElectronBrowserContext> browser_context,
+      const content::StoragePartitionConfig& config);
+#endif
+
   // content::AuthenticatorRequestClientDelegate:
+  void SetUIPresentation(UIPresentation presentation) override;
+  void ConfigureDiscoveries(
+      const url::Origin& origin,
+      const std::string& rp_id,
+      RequestSource request_source,
+      device::FidoRequestType request_type,
+      std::optional<device::ResidentKeyRequirement> resident_key_requirement,
+      device::UserVerificationRequirement user_verification_requirement,
+      bool cmtg_key_requested,
+      std::optional<std::string_view> user_name,
+      bool is_enclave_authenticator_available,
+      device::FidoDiscoveryFactory* discovery_factory) override;
+  void BluetoothAdapterStatusChanged(
+      device::FidoRequestHandlerBase::BleStatus status) override;
   void SetRelyingPartyId(const std::string& rp_id) override;
   void StartObserving(device::FidoRequestHandlerBase* request_handler) override;
   void StopObserving(device::FidoRequestHandlerBase* request_handler) override;
@@ -86,6 +116,20 @@ class ElectronAuthenticatorRequestClientDelegate
     std::string id;
     std::string display_name;
   };
+  void UpdateHybridTransportAvailability(
+      const device::FidoRequestHandlerBase::TransportAvailabilityInfo& data);
+  void EmitHybridRequest(bool available);
+  void CancelHybridRequest();
+  void FinishHybridRequest();
+
+  UIPresentation presentation_ = UIPresentation::kDisabled;
+  HybridRequestState hybrid_state_;
+  HybridRequestHandler hybrid_handler_;
+  bool hybrid_transport_present_ = false;
+  std::string hybrid_request_id_;
+  std::string hybrid_origin_;
+  std::string hybrid_qr_;
+  base::WeakPtr<ElectronBrowserContext> hybrid_browser_context_;
 
   void OnAccountSelected(gin::Arguments* args);
   void CancelPendingAccountSelection();
