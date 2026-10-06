@@ -23,7 +23,7 @@
 namespace content {
 class RenderFrameHost;
 class StoragePartitionConfig;
-}
+}  // namespace content
 
 namespace network::mojom {
 class NetworkContext;

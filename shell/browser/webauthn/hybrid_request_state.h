@@ -11,7 +11,9 @@ namespace electron {
 // owns no credentials or crypto and cannot complete an authentication request.
 class HybridRequestState {
  public:
-  bool Configure(bool enabled, bool modal_get, bool virtual_environment,
+  bool Configure(bool enabled,
+                 bool modal_get,
+                 bool virtual_environment,
                  bool has_factory) {
     if (configured_ || closed_ || !enabled || !modal_get ||
         virtual_environment || !has_factory) {

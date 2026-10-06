@@ -22,8 +22,7 @@ def no_core():
 
 def invoke(command, environment, timeout):
     with subprocess.Popen(command, env=environment, stdout=subprocess.DEVNULL,
-                          stderr=subprocess.PIPE, start_new_session=True,
-                          preexec_fn=no_core) as child:
+                          stderr=subprocess.PIPE, start_new_session=True) as child:
         try:
             _, errors = child.communicate(timeout=timeout)
             if child.returncode:
@@ -42,6 +41,7 @@ def invoke(command, environment, timeout):
 
 
 def main():
+    no_core()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=["all", "state", "native"], default="all")
     parser.add_argument("--out-dir", type=Path, help="Explicit Electron build output directory")

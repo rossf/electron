@@ -148,7 +148,8 @@ class UvLockedPinSecurityKeyDiscovery final
 // never a null or dangling pointer and never a different profile's context.
 // This is UI-sequence-only like the native WebAuthn request delegate.
 network::mojom::NetworkContext* ClosedNetworkContext() {
-  static base::NoDestructor<mojo::Remote<network::mojom::NetworkContext>> remote;
+  static base::NoDestructor<mojo::Remote<network::mojom::NetworkContext>>
+      remote;
   if (!remote->is_bound())
     remote->BindNewPipeAndPassReceiver().reset();
   return remote->get();
@@ -167,7 +168,8 @@ network::mojom::NetworkContext* HybridNetworkContext(
 
 // Post rather than emit from native teardown: JS must not re-enter a partially
 // destroyed RequestState. The weak BrowserContext prevents use after shutdown;
-// FromBrowserContext only retrieves an existing Session, it does not create one.
+// FromBrowserContext only retrieves an existing Session, it does not create
+// one.
 void NotifyHybridEnded(base::WeakPtr<ElectronBrowserContext> browser_context,
                        std::string request_id,
                        HybridRequestHandler owner) {
@@ -185,7 +187,8 @@ void NotifyHybridEnded(base::WeakPtr<ElectronBrowserContext> browser_context,
     return;
   auto details = gin::DataObjectBuilder(isolate)
                      .Set("requestId", request_id)
-                     .Set("state", "ended").Build();
+                     .Set("state", "ended")
+                     .Build();
   v8::TryCatch try_catch(isolate);
   owner.Run(details, v8::Undefined(isolate));
   // Teardown is already complete. Contain ordinary UI errors without exposing
@@ -216,10 +219,10 @@ ElectronAuthenticatorRequestClientDelegate::
 }
 
 #if DCHECK_IS_ON() && BUILDFLAG(IS_LINUX)
-network::mojom::NetworkContext*
-ElectronAuthenticatorRequestClientDelegate::ResolveHybridNetworkContextForTesting(
-    base::WeakPtr<ElectronBrowserContext> browser_context,
-    const content::StoragePartitionConfig& config) {
+network::mojom::NetworkContext* ElectronAuthenticatorRequestClientDelegate::
+    ResolveHybridNetworkContextForTesting(
+        base::WeakPtr<ElectronBrowserContext> browser_context,
+        const content::StoragePartitionConfig& config) {
   return HybridNetworkContext(std::move(browser_context), config);
 }
 #endif
@@ -249,7 +252,8 @@ void ElectronAuthenticatorRequestClientDelegate::ConfigureDiscoveries(
     return;
   const bool enabled = base::CommandLine::ForCurrentProcess()->HasSwitch(
       "enable-electron-webauthn-hybrid");
-  const bool modal_get = presentation_ == UIPresentation::kModal &&
+  const bool modal_get =
+      presentation_ == UIPresentation::kModal &&
       request_source == RequestSource::kWebAuthentication &&
       request_type == device::FidoRequestType::kGetAssertion &&
       !cmtg_key_requested;
@@ -281,9 +285,9 @@ void ElectronAuthenticatorRequestClientDelegate::ConfigureDiscoveries(
 
   // Resolve the existing partition on every call via its weak owning context.
   // Do not retain a raw StoragePartition or recreate one after shutdown.
-  discovery_factory->set_network_context_factory(base::BindRepeating(
-      &HybridNetworkContext, hybrid_browser_context_,
-      rfh->GetStoragePartition()->GetConfig()));
+  discovery_factory->set_network_context_factory(
+      base::BindRepeating(&HybridNetworkContext, hybrid_browser_context_,
+                          rfh->GetStoragePartition()->GetConfig()));
 
   // Do NOT emit JS here: RegisterActionCallbacks has not yet been called.
   // No pairing callback is installed, so no remembered-phone pairing is saved.
@@ -297,8 +301,9 @@ void ElectronAuthenticatorRequestClientDelegate::ConfigureDiscoveries(
 #endif
 }
 
-void ElectronAuthenticatorRequestClientDelegate::UpdateHybridTransportAvailability(
-    const device::FidoRequestHandlerBase::TransportAvailabilityInfo& data) {
+void ElectronAuthenticatorRequestClientDelegate::
+    UpdateHybridTransportAvailability(
+        const device::FidoRequestHandlerBase::TransportAvailabilityInfo& data) {
   if (!hybrid_state_.active())
     return;
   hybrid_transport_present_ = data.available_transports.contains(
@@ -313,36 +318,45 @@ void ElectronAuthenticatorRequestClientDelegate::UpdateHybridTransportAvailabili
 
 void ElectronAuthenticatorRequestClientDelegate::BluetoothAdapterStatusChanged(
     device::FidoRequestHandlerBase::BleStatus status) {
-  const bool available = status == device::FidoRequestHandlerBase::BleStatus::kOn;
+  const bool available =
+      status == device::FidoRequestHandlerBase::BleStatus::kOn;
   if (hybrid_transport_present_ && hybrid_state_.SetAvailable(available))
     EmitHybridRequest(available);
 }
 
-void ElectronAuthenticatorRequestClientDelegate::EmitHybridRequest(bool available) {
+void ElectronAuthenticatorRequestClientDelegate::EmitHybridRequest(
+    bool available) {
   auto* rfh = content::RenderFrameHost::FromID(render_frame_host_id_);
-  auto* session = hybrid_browser_context_
-      ? api::Session::FromBrowserContext(hybrid_browser_context_.get()) : nullptr;
+  auto* session =
+      hybrid_browser_context_
+          ? api::Session::FromBrowserContext(hybrid_browser_context_.get())
+          : nullptr;
   if (!rfh || !rfh->IsActive() || !hybrid_browser_context_ ||
-      hybrid_browser_context_->ShutdownStarted() || !session || !session->Get() ||
-      !cancel_callback_ || !hybrid_handler_) {
+      hybrid_browser_context_->ShutdownStarted() || !session ||
+      !session->Get() || !cancel_callback_ || !hybrid_handler_) {
     CancelHybridRequest();
     return;
   }
   v8::Isolate* isolate = JavascriptEnvironment::GetIsolate();
   v8::HandleScope scope(isolate);
-  auto details = gin::DataObjectBuilder(isolate)
-      .Set("requestId", hybrid_request_id_)
-      .Set("origin", hybrid_origin_)
-      .Set("relyingPartyId", relying_party_id_)
-      .Set("frame", rfh)
-      .Set("state", std::string(available ? "ready" : "unavailable"))
-      .Set("qrCode", available ? hybrid_qr_ : std::string()).Build();
+  auto details =
+      gin::DataObjectBuilder(isolate)
+          .Set("requestId", hybrid_request_id_)
+          .Set("origin", hybrid_origin_)
+          .Set("relyingPartyId", relying_party_id_)
+          .Set("frame", rfh)
+          .Set("state", std::string(available ? "ready" : "unavailable"))
+          .Set("qrCode", available ? hybrid_qr_ : std::string())
+          .Build();
   auto weak_this = weak_factory_.GetWeakPtr();
-  // Repeating JS cancellation is intentional. It captures only a native WeakPtr,
-  // not a JS object or owning reference; duplicate/stale calls are inert.
-  auto cancel = gin_helper::CallbackToV8Leaked(isolate, base::BindRepeating(
-      &ElectronAuthenticatorRequestClientDelegate::CancelHybridRequest,
-      weak_this));
+  // Repeating JS cancellation is intentional. It captures only a native
+  // WeakPtr, not a JS object or owning reference; duplicate/stale calls are
+  // inert.
+  auto cancel = gin_helper::CallbackToV8Leaked(
+      isolate,
+      base::BindRepeating(
+          &ElectronAuthenticatorRequestClientDelegate::CancelHybridRequest,
+          weak_this));
   auto owner = hybrid_handler_;
   v8::TryCatch try_catch(isolate);
   auto acknowledgement = owner.Run(details, cancel);
@@ -371,8 +385,9 @@ void ElectronAuthenticatorRequestClientDelegate::FinishHybridRequest() {
   hybrid_qr_.clear();
   if (hybrid_state_.TakeCloseNotification()) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(&NotifyHybridEnded, hybrid_browser_context_,
-                                 hybrid_request_id_, std::move(hybrid_handler_)));
+        FROM_HERE,
+        base::BindOnce(&NotifyHybridEnded, hybrid_browser_context_,
+                       hybrid_request_id_, std::move(hybrid_handler_)));
   }
 }
 
