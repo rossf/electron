@@ -17,7 +17,8 @@ permissions: {}
 jobs:
   dispatch-pgo-generation:
     name: Dispatch PGO Generation
-    if: github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron')
     runs-on: ubuntu-latest
     permissions:
       # Required for createWorkflowDispatch on pgo-generation.yml.

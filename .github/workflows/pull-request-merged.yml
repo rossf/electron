@@ -13,7 +13,8 @@ permissions: {}
 jobs:
   add-major-version-label:
     name: Add major version label to merged PR
-    if: ${{ github.repository == 'electron/electron' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' }}
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -44,7 +45,8 @@ jobs:
 
   add-to-release-project-board:
     name: Add merged PR to release project board
-    if: ${{ github.repository == 'electron/electron' && github.event.pull_request.merged == true && endsWith(github.event.pull_request.base.ref, '-x-y') }}
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron' && github.event.pull_request.merged == true && endsWith(github.event.pull_request.base.ref, '-x-y'))
     runs-on: ubuntu-latest
     permissions: {}
     steps:

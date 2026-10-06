@@ -33,6 +33,8 @@ permissions: {}
 
 jobs:
   collect:
+    if: >-
+      github.repository == 'electron/electron'
     runs-on: ${{ inputs.collect-runs-on }}
     container: ${{ fromJSON(inputs.collect-container) }} # zizmor: ignore[unpinned-images] the caller passes ghcr.io/electron/build tagged by the content hash computed in build.yml; there is no static digest to pin
     permissions:

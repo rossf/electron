@@ -110,6 +110,8 @@ permissions: {}
 
 jobs:
   build:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-build.yml
     permissions:
       contents: read
@@ -141,7 +143,8 @@ jobs:
     permissions:
       contents: read
     needs: build
-    if: ${{ inputs.run-clang-tidy }}
+    if: >-
+      github.repository == 'electron/electron' && (inputs.run-clang-tidy)
     with:
       clang-tidy-runs-on: ${{ inputs.clang-tidy-runs-on }}
       clang-tidy-container: ${{ inputs.clang-tidy-container }}
@@ -150,6 +153,8 @@ jobs:
     secrets:
       ELECTRON_RBE_JWT: ${{ secrets.ELECTRON_RBE_JWT }}
   test:
+    if: >-
+      github.repository == 'electron/electron'
     uses: ./.github/workflows/pipeline-segment-electron-test.yml
     permissions:
       contents: read

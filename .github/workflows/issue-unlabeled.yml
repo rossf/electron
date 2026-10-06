@@ -9,7 +9,8 @@ permissions: {}
 jobs:
   issue-unlabeled-blocked:
     name: All blocked/* labels removed
-    if: startsWith(github.event.label.name, 'blocked/') && github.event.issue.state == 'open'
+    if: >-
+      github.repository == 'electron/electron' && (startsWith(github.event.label.name, 'blocked/') && github.event.issue.state == 'open')
     runs-on: ubuntu-latest
     permissions:
       contents: read

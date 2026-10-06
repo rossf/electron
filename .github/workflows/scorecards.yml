@@ -13,7 +13,8 @@ permissions: read-all
 jobs:
   analysis:
     name: Scorecards analysis
-    if: github.repository == 'electron/electron'
+    if: >-
+      github.repository == 'electron/electron' && (github.repository == 'electron/electron')
     runs-on: ubuntu-latest
     permissions:
       # Needed to upload the results to code-scanning dashboard.
