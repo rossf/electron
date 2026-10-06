@@ -19,6 +19,7 @@
 #include "services/network/public/mojom/ssl_config.mojom-forward.h"
 #include "shell/browser/api/ipc_dispatcher.h"
 #include "shell/browser/event_emitter_mixin.h"
+#include "shell/browser/webauthn/hybrid_request_handler.h"
 #include "shell/common/gin_helper/constructible.h"
 #include "shell/common/gin_helper/self_keep_alive.h"
 
@@ -109,6 +110,11 @@ class Session final : public gin::Wrappable<Session>,
   void OnBeforeDispose(v8::Isolate* isolate) override {}
   void OnBeforeMicrotasksRunnerDispose(v8::Isolate* isolate) override;
   void OnDisposed() override {}
+
+  HybridRequestHandler GetWebAuthnHybridHandler() const {
+    return webauthn_hybrid_handler_;
+  }
+  void SetWebAuthnHybridHandler(v8::Local<v8::Value> val, gin::Arguments* args);
 
   // Methods.
   void Dispose();
@@ -201,6 +207,7 @@ class Session final : public gin::Wrappable<Session>,
 #endif
 
  private:
+  HybridRequestHandler webauthn_hybrid_handler_;
   void SetDisplayMediaRequestHandler(v8::Isolate* isolate,
                                      v8::Local<v8::Value> val);
 

@@ -587,6 +587,7 @@ Session::~Session() {
 }
 
 void Session::Dispose() {
+  webauthn_hybrid_handler_.Reset();
   if (!keep_alive_)
     return;
 
@@ -963,6 +964,19 @@ void Session::SetUSBProtectedClassesHandler(v8::Local<v8::Value> val,
   auto* permission_manager = static_cast<ElectronPermissionManager*>(
       browser_context()->GetPermissionControllerDelegate());
   permission_manager->SetProtectedUSBHandler(handler);
+}
+
+void Session::SetWebAuthnHybridHandler(v8::Local<v8::Value> val,
+                                       gin::Arguments* args) {
+  HybridRequestHandler handler;
+  if (!(val->IsNull() || gin::ConvertFromV8(args->isolate(), val, &handler))) {
+    args->ThrowTypeError("Must pass null or function");
+    return;
+  }
+  // Existing requests retain their own owner snapshot. Removal/replacement
+  // affects only future requests; explicit per-request cancel handles remain
+  // live.
+  webauthn_hybrid_handler_ = std::move(handler);
 }
 
 void Session::SetBluetoothPairingHandler(v8::Local<v8::Value> val,
@@ -1807,6 +1821,7 @@ void Session::FillObjectTemplate(v8::Isolate* isolate,
                  &Session::SetDevicePermissionHandler)
       .SetMethod("setUSBProtectedClassesHandler",
                  &Session::SetUSBProtectedClassesHandler)
+      .SetMethod("setWebAuthnHybridHandler", &Session::SetWebAuthnHybridHandler)
       .SetMethod("setBluetoothPairingHandler",
                  &Session::SetBluetoothPairingHandler)
       .SetMethod("clearHostResolverCache", &Session::ClearHostResolverCache)
