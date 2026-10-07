@@ -171,3 +171,22 @@ requires a void return contract and rejects a boolean acknowledgement type.
 The historical counts above describe earlier source heads, not this API revision.
 The separately reproduced hover-related BrowserContext shutdown failure is an
 independent issue; no fix for it is included in this API diff.
+
+On 2026-10-07, Linux validation of API source
+`1b0795cd29256c500f805a5325992928c4bb1deb` passed: the ordinary Electron and
+isolated mock executables compiled; the state test, 26 authentication cases,
+four authentication no-handler controls, 35 creation cases, one creation
+no-handler control and pending-creation shutdown all passed. The shutdown case
+required the native teardown marker. Ignored-return cases checked both a pending
+renderer request and live native discovery before explicit cancellation.
+
+Changed-file lint, generated declarations and actual TypeScript checks passed,
+as did nine offline CI-harness tests and five mocked supervisor tests. The native
+supervisor sent no signals and retained its fresh private test directories.
+Sandboxing and DCHECKs were enabled, with core dumps disabled.
+
+The compiled checkout used the same Electron/Chromium bases listed above and
+included the independent storage fix at
+`4076a8688ef5db2ff019826c31f570881555b3d0`. That dependency patch remains outside
+this API diff. These results establish the synthetic API contract on Linux;
+they do not establish that the separate hover shutdown failure is fixed.

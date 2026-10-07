@@ -25,6 +25,8 @@ It checks the exact head against GitHub's resolved merge base:
   checks no-return handlers, a void return type and rejection of the old boolean
   acknowledgement type.
 - The standalone C++ lifetime-policy test, when present on that source head.
+- Five mocked supervisor tests for timeout behavior and profile retention, alongside
+  the nine offline patch-order/scope tests. These checks do not launch Electron.
 - Chromium patch registry consistency. When the storage shutdown patch is
   present, the complete one-file patch must apply to the source version pinned
   by that head's DEPS, after earlier patches touching the same file. The check
