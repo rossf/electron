@@ -45,6 +45,7 @@ struct ProbeState {
   bool hybrid_configured = false;
   bool hybrid_device = false;
   bool platform_device = false;
+  bool pending_only = false;
   bool resident_keys = true;
   bool uv_support = true;
   bool uv_success = true;
@@ -68,7 +69,8 @@ class Discovery final : public device::FidoDeviceDiscovery {
 
  private:
   void StartInternal() override {
-    if (transport_ == state_->device_state->transport) {
+    if (!state_->pending_only &&
+        transport_ == state_->device_state->transport) {
       device::VirtualCtap2Device::Config config;
       config.is_platform_authenticator = state_->platform_device;
       config.internal_uv_support = state_->uv_support;
@@ -215,6 +217,7 @@ bool PrepareProbe(bool powered, bool press, gin::Arguments* args) {
   state.usb_devices = state.hybrid_devices = state.platform_devices = 0;
   state.hybrid_configured = false;
   state.hybrid_device = state.platform_device = false;
+  state.pending_only = false;
   state.resident_keys = state.uv_support = state.uv_success = true;
   state.request_type.clear();
   state.device_state->transport = Transport::kUsbHumanInterfaceDevice;
@@ -225,6 +228,15 @@ bool PrepareProbe(bool powered, bool press, gin::Arguments* args) {
 
 void Prepare(bool powered, bool press, gin::Arguments* args) {
   PrepareProbe(powered, press, args);
+}
+
+void PreparePending(gin::Arguments* args) {
+  if (!PrepareProbe(true, false, args))
+    return;
+  // Concurrent ownership tests need live discoveries, not authenticators. The
+  // shared virtual credential state has only one pending CTAP callback slot;
+  // sharing it across devices would couple otherwise independent cancellations.
+  Current()->state->pending_only = true;
 }
 
 void PrepareCreation(bool powered,
@@ -329,6 +341,7 @@ void Initialize(v8::Local<v8::Object> exports,
   gin_helper::Dictionary dict(v8::Isolate::GetCurrent(), exports);
   dict.SetMethod("install", &Install);
   dict.SetMethod("prepare", &Prepare);
+  dict.SetMethod("preparePending", &PreparePending);
   dict.SetMethod("prepareCreation", &PrepareCreation);
   dict.SetMethod("preparePlatform", &PreparePlatform);
   dict.SetMethod("qrRequestType", &QrRequestType);

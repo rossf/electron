@@ -29,6 +29,8 @@ described below. A usable Linux
 display is required for Electron; an existing Xvfb session is also suitable.
 The mock binding is linked only into the separately named test executable.
 The ordinary `electron` target contains no browser-owned mock binding.
+Its Linux-only test entry point is `shell/app/hybrid_browser_owned_test_main_linux.cc`;
+the production application keeps its existing platform entry points.
 
 For the small state test alone, from the Electron repository root:
 
@@ -137,10 +139,17 @@ the mock environment. The runner requires that completion marker and a clean exi
 Return-value cases verify the request remains pending before explicit cancellation.
 Each invocation uses fresh temporary profiles, a run identifier and result checks.
 The default suite also runs the authentication fixture with the same void contract.
+The enabled creation fixture additionally runs four concurrent create/get cases:
+cancellation or navigation of either request in separate windows. They check
+distinct IDs, stable request types, a pending survivor after duplicate/stale
+cancellation, exactly one terminal update per request, and discovery/observer cleanup.
+These four cases keep synthetic discoveries alive without authenticators, so
+they test ownership independently of credential completion. They do not test
+competing transports or shared-authenticator scheduling.
 
 These checks validate native integration and lifecycle behavior, not phone
-interoperability, network transport or RP enrollment. Real registration remains a
-user-controlled test, and no laptop artifact is regenerated for this follow-up.
+interoperability, network transport or RP enrollment. The separate
+[user-operated phone result](#user-operated-phone-result) records the limited live evidence.
 
 Before this simplification, on 2026-10-06 the Linux creation build passed all three GN dependency checks,
 the standalone state test, 26 enabled and four disabled authentication cases,
@@ -190,3 +199,37 @@ included the independent storage fix at
 `4076a8688ef5db2ff019826c31f570881555b3d0`. That dependency patch remains outside
 this API diff. These results establish the synthetic API contract on Linux;
 they do not establish that the separate hover shutdown failure is fixed.
+
+## Concurrent ownership validation
+
+On 2026-10-07, the isolated Linux test executable was rebuilt for the test-entry
+rename and pending-only mock mode. The targeted run passed 70 synthetic browser
+cases: 39 creation cases including the four concurrent create/get cases, one
+creation no-handler control, 26 authentication cases and four authentication
+no-handler controls. The standalone state test and the renamed target's GN
+dependency check also passed. The production API implementation was unchanged.
+
+The build retained sandboxing, DCHECKs and the independent storage patch recorded
+above. Core dumps were disabled; the supervisor sent no signals and retained
+the private test directories. The pending-creation app-quit case was not rerun
+in this follow-up; its earlier result remains recorded above. No new phone
+ceremony or shutdown investigation was performed.
+
+## User-operated phone result
+
+On 2026-10-07, a user-operated disposable localhost test of the simplified API
+reported `registrationVerified: true` and `authenticationVerified: true`, with
+one native creation-ready and one native authentication-ready update. This is
+user-supplied harness evidence for successful phone registration and signed
+authentication in that configuration; the assistant did not independently observe
+the ceremony.
+
+The same run subsequently exited with `SIGABRT` (`code: null`, overall `ok: false`).
+Clean exit failed. No stack trace was supplied and the cause is unconfirmed; this
+does not establish that it is the separately tracked hover shutdown issue.
+The supervisor reported zero signals sent.
+
+Live cancellation and transport interruption/recovery, other phones/providers
+and relying parties, non-Linux compilation and production readiness remain
+unvalidated. No credentials, QR payloads, profiles or raw native results are
+published here. The separate shutdown investigation remains deferred.

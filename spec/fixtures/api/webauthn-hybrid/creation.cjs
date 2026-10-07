@@ -522,6 +522,129 @@ app
         save();
       }
     }
+    if (enabled) {
+      for (const affectedType of ['create', 'get']) {
+        for (const action of ['cancel', 'navigate']) {
+          const entry = { name: `concurrent-${affectedType}-${action}`, ok: false };
+          result.tests.push(entry);
+          const createWindow = await window(),
+            getWindow = await window();
+          const events = [];
+          try {
+            // Keep discoveries alive without devices: this tests request/UI
+            // ownership independently of credential or transport completion.
+            binding.preparePending();
+            ses.setWebAuthnHybridHandler((details, cancel) => {
+              events.push({
+                id: details.requestId,
+                type: details.requestType,
+                state: details.state,
+                origin: details.origin,
+                rp: details.relyingPartyId,
+                processId: details.frame?.processId,
+                routingId: details.frame?.routingId,
+                cancel
+              });
+            });
+            await start(createWindow.webContents, { timeout: 30000 });
+            await getWindow.webContents.executeJavaScript(
+              `(() => {
+                globalThis.controller = new AbortController(); globalThis.outcome = null;
+                navigator.credentials.get({ signal: controller.signal, publicKey: {
+                  rpId: 'localhost', challenge: crypto.getRandomValues(new Uint8Array(32)),
+                  allowCredentials: [{ type: 'public-key', id: Uint8Array.of(1), transports: ['hybrid'] }],
+                  userVerification: 'required', timeout: 30000
+                }}).then(() => { globalThis.outcome = { ok: true }; },
+                  e => { globalThis.outcome = { ok: false, name: e.name }; });
+                return true;
+              })()`,
+              true
+            );
+            await until(
+              () =>
+                ['create', 'get'].every((type) =>
+                  events.some((event) => event.type === type && event.state === 'ready')
+                ),
+              'Both create and get must become independently owned'
+            );
+            const requests = new Map();
+            for (const [type, win] of [
+              ['create', createWindow],
+              ['get', getWindow]
+            ]) {
+              const request = events.find((event) => event.type === type && event.state === 'ready');
+              assert.equal(request.origin, origin);
+              assert.equal(request.rp, 'localhost');
+              assert.equal(request.processId, win.webContents.mainFrame.processId);
+              assert.equal(request.routingId, win.webContents.mainFrame.routingId);
+              assert.equal(typeof request.cancel, 'function');
+              assert.equal(await win.webContents.executeJavaScript('globalThis.outcome'), null);
+              requests.set(type, { ...request, win });
+            }
+            assert.notEqual(requests.get('create').id, requests.get('get').id);
+            assert.equal(binding.stats().usbDevices, 0);
+            assert.equal(binding.stats().hybridDevices, 0);
+            assert.equal(binding.stats().platformDevices, 0);
+            const affected = requests.get(affectedType),
+              survivor = requests.get(affectedType === 'create' ? 'get' : 'create');
+            if (action === 'cancel') {
+              affected.cancel();
+              affected.cancel();
+              assert.equal((await settled(affected.win.webContents)).name, 'NotAllowedError');
+            } else {
+              await affected.win.loadURL(origin + '/concurrent-navigation');
+            }
+            await until(
+              () => events.some((event) => event.id === affected.id && event.state === 'ended'),
+              'Affected request must end after cancellation or navigation'
+            );
+            affected.cancel();
+            affected.cancel();
+            // Allow posted terminal notifications to run before checking that
+            // duplicate/stale handles did not settle the other window's request.
+            await pause(50);
+            assert.equal(await survivor.win.webContents.executeJavaScript('globalThis.outcome'), null);
+            assert.ok(!events.some((event) => event.id === survivor.id && event.state === 'ended'));
+            assert.ok(binding.stats().live > 0, 'Surviving request retains native discovery');
+            survivor.cancel();
+            survivor.cancel();
+            assert.equal((await settled(survivor.win.webContents)).name, 'NotAllowedError');
+            await idle();
+            await until(
+              () =>
+                [...requests.values()].every((request) =>
+                  events.some((event) => event.id === request.id && event.state === 'ended')
+                ),
+              'Both requests require terminal notifications'
+            );
+            assert.equal(new Set(events.map((event) => event.id)).size, 2);
+            for (const [type, request] of requests) {
+              const updates = events.filter((event) => event.id === request.id);
+              assert.ok(updates.every((event) => event.type === type));
+              const terminal = updates.filter((event) => event.state === 'ended');
+              assert.equal(terminal.length, 1);
+              assert.equal(terminal[0].cancel, undefined);
+            }
+            assert.equal(binding.stats().mockFailed, false);
+            entry.ok = true;
+          } catch (error) {
+            entry.error = error.stack || String(error);
+          } finally {
+            for (const win of [createWindow, getWindow]) {
+              if (!win.isDestroyed()) {
+                await win.webContents.executeJavaScript('globalThis.controller?.abort()').catch(() => {});
+                win.destroy();
+              }
+            }
+            await idle();
+            ses.setWebAuthnHybridHandler(null);
+            entry.states = events.map((event) => ({ state: event.state, type: event.type }));
+            entry.stats = binding.stats();
+            save();
+          }
+        }
+      }
+    }
     binding.uninstall();
     assert.equal(windows.size, 0);
     await Promise.all([

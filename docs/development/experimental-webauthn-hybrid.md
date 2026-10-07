@@ -61,8 +61,10 @@ app.whenReady().then(() => {
 
 See the [API contract](../api/session.md#sessetwebauthnhybridhandlerhandler-linux-experimental)
 and [test reproduction](webauthn-hybrid-testing.md). Native results are recorded
-there separately from bounded hosted source checks. Real phone/BLE/caBLE
-interoperability, non-Linux compilation and production readiness remain unvalidated.
+there separately from bounded hosted source checks. A user-operated localhost
+phone test reported successful registration and signed authentication, followed by
+`SIGABRT` of unconfirmed cause on exit. Other phone/provider configurations, live cancellation
+and transport recovery, non-Linux compilation and production readiness remain unvalidated.
 
 Source notices, upstream history and MIT licensing are retained. This work was
 created with Codex assistance. No application integration code, profiles,

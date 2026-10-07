@@ -25,8 +25,10 @@ WebAuthn cases passed. See [recorded validation](webauthn-hybrid-testing.md#hist
 for exact source commits and scope. The preserved Electron 43 checkout and
 binaries were not overwritten.
 
-Non-Linux compilation and real phone interoperability remain unvalidated on this
-build. The network-context resolver's weak owner, original partition and non-null
+Non-Linux compilation remains unvalidated. A later user-operated localhost phone
+test reported registration and signed authentication success, followed by
+`SIGABRT` of unconfirmed cause on exit; see the [phone result](webauthn-hybrid-testing.md#user-operated-phone-result).
+The network-context resolver's weak owner, original partition and non-null
 closed endpoint still need review; the portable suite does not directly exercise
 every resolver or native-peer shutdown/GC path. Finite synthetic runs cannot
 establish production readiness. The standalone state test and source CI alone
@@ -43,8 +45,10 @@ platform-only requests, cancellation, timeout, navigation, destruction and app
 shutdown. See [creation coverage](webauthn-hybrid-testing.md#creation-follow-up)
 and the [API simplification results](webauthn-hybrid-testing.md#api-simplification-validation).
 
-Real phone transport, account enrollment and RP acceptance remain untested.
-A user-controlled test should use a disposable relying party and account, confirm
+The reported phone result covers one disposable localhost configuration, not
+other phones/providers or relying parties. Live cancellation and transport
+interruption/recovery remain unvalidated. Further user-controlled testing should
+use a disposable relying party and account, confirm
 that UI says "Create a passkey" with the expected origin/RP, explicitly approve
 creation on the phone, then check a separate sign-in and cancellation. Keep QR,
 credential, account and device data out of reports. `ended` signals native

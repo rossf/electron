@@ -2235,7 +2235,7 @@ if (is_linux) {
     testonly = true
     sources = [
       "shell/app/environ_linux.cc",
-      "shell/app/hybrid_browser_owned_main_linux.cc",
+      "shell/app/hybrid_browser_owned_test_main_linux.cc",
       "shell/app/uv_stdio_fix.cc",
       "shell/app/uv_stdio_fix.h",
       "shell/browser/webauthn/hybrid_browser_owned_testing.cc",
