@@ -604,6 +604,8 @@ filenames = {
     "shell/browser/webauthn/electron_authenticator_request_client_delegate.h",
     "shell/browser/webauthn/electron_authenticator_request_delegate.cc",
     "shell/browser/webauthn/electron_authenticator_request_delegate.h",
+    "shell/browser/webauthn/hybrid_request_handler.h",
+    "shell/browser/webauthn/hybrid_request_state.h",
     "shell/browser/window_list.cc",
     "shell/browser/window_list.h",
     "shell/browser/window_list_observer.h",

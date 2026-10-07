@@ -25,6 +25,8 @@ BRANCH_KINDS = {
     "experimental/linux-phone-passkey-main": "authentication",
     "fix/in-memory-storage-shutdown": "storage",
     "docs/fork-ci-active-status": "ci",
+    "experimental/linux-phone-passkey-create-main": "simplification",
+    "experimental/linux-phone-passkey-api-main": "simplification",
 }
 
 
@@ -267,7 +269,9 @@ def types(root):
     """Generate real declarations and run Electron's actual compiler checks."""
     smoke = root / "spec/ts-smoke/fork-hybrid-api.ts"
     config = root / "spec/ts-smoke/fork-hybrid-tsconfig.json"
-    has_hybrid = "ses.setWebAuthnHybridHandler(handler)" in (root / "docs/api/session.md").read_text()
+    api_docs = (root / "docs/api/session.md").read_text()
+    has_hybrid = "ses.setWebAuthnHybridHandler(handler)" in api_docs
+    simplified = "The handler returns no value." in api_docs
     if smoke.exists() or config.exists():
         raise ValueError("Refusing to overwrite a source file")
     try:
@@ -282,6 +286,28 @@ def types(root):
                              'session.defaultSession.setWebAuthnHybridHandler(null);\n'
                              '// @ts-expect-error a number is not an ownership callback\n'
                              'session.defaultSession.setWebAuthnHybridHandler(123);\n')
+        if has_hybrid and "* `requestType` string" in api_docs:
+            with smoke.open("a", encoding="utf-8") as stream:
+                stream.write('session.defaultSession.setWebAuthnHybridHandler(details => {\n'
+                             '  const kind: string = details.requestType;\n'
+                             '  // @ts-expect-error requestType must not be an untyped number\n'
+                             '  const invalid: number = details.requestType;\n'
+                             '  void kind; void invalid; return true;\n'
+                             '});\n')
+        if simplified:
+            with smoke.open("a", encoding="utf-8") as stream:
+                stream.write('session.defaultSession.setWebAuthnHybridHandler((details, cancel) => {\n'
+                             '  if (details.state === "ready") details.qrCode?.startsWith("FIDO:/");\n'
+                             '  void cancel;\n'
+                             '});\n'
+                             'type Handler = NonNullable<Parameters<typeof session.defaultSession.setWebAuthnHybridHandler>[0]>;\n'
+                             'type Assert<T extends true> = T;\n'
+                             'type ReturnsVoid = Assert<ReturnType<Handler> extends void ? true : false>;\n'
+                             'type AcceptsVoid = Assert<void extends ReturnType<Handler> ? true : false>;\n'
+                             '// @ts-expect-error handler is void, not a synchronous boolean decision\n'
+                             'const oldAcknowledgement: ReturnType<Handler> = true;\n'
+                             'const contract: ReturnsVoid & AcceptsVoid = true;\n'
+                             'void contract; void oldAcknowledgement;\n')
         run(["node", "script/yarn.js", "create-typescript-definitions"], root)
         if has_hybrid and "setWebAuthnHybridHandler" not in (root / "electron.d.ts").read_text():
             raise ValueError("Generated declarations omitted the hybrid API")
@@ -374,17 +400,26 @@ def main():
     parser.add_argument("--source-root", type=Path, default=Path.cwd())
     parser.add_argument("--base-sha")
     parser.add_argument("--tools-root", type=Path)
-    parser.add_argument("--source-kind", choices=("authentication", "storage", "ci"))
+    parser.add_argument("--source-kind", choices=("authentication", "creation", "simplification", "storage", "ci"))
     args = parser.parse_args()
     root = args.source_root.resolve()
     if args.phase == "matrix":
         matrix()
     elif args.phase == "verify":
-        if args.source_kind == "authentication":
+        if args.source_kind in ("authentication", "creation", "simplification"):
             if (not (root / "script/run-webauthn-hybrid-tests.py").is_file()
                     or "ses.setWebAuthnHybridHandler(handler)" not in
                     (root / "docs/api/session.md").read_text()):
                 raise ValueError("Expected authentication API and state runner are missing")
+            if args.source_kind in ("creation", "simplification") and (
+                    not (root / "spec/fixtures/api/webauthn-hybrid/creation.cjs").is_file()
+                    or "* `requestType` string" not in
+                    (root / "docs/api/session.md").read_text()):
+                raise ValueError("Expected creation fixture and request type are missing")
+            if args.source_kind == "simplification" and (
+                    "The handler returns no value." not in
+                    (root / "docs/api/session.md").read_text()):
+                raise ValueError("Expected void handler contract is missing")
         elif args.source_kind == "storage":
             if (STORAGE_PATCH not in patch_registry(root)
                     or not (root / "script/run-storage-shutdown-tests.py").is_file()):
