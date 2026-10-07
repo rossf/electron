@@ -17,7 +17,7 @@ jobs:
     if: >-
       github.repository == 'rossf/electron' &&
       github.event.pull_request.head.repo.full_name == 'rossf/electron' &&
-      contains(fromJSON('["experimental/linux-phone-passkey-preservation","experimental/linux-phone-passkey-main","fix/in-memory-storage-shutdown","docs/fork-ci-active-status"]'), github.head_ref)
+      contains(fromJSON('["experimental/linux-phone-passkey-preservation","experimental/linux-phone-passkey-main","fix/in-memory-storage-shutdown","fix/network-hints-shutdown-main","docs/fork-ci-active-status"]'), github.head_ref)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
