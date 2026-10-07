@@ -198,12 +198,16 @@ app
     })()`,
         true
       );
+      verifyAssertion(value, challenge, registration);
+    }
+    function verifyAssertion(value, challenge, registration) {
       const client = Buffer.from(value.clientDataJSON),
         data = JSON.parse(client),
         auth = Buffer.from(value.authenticatorData);
       assert.equal(data.type, 'webauthn.get');
       assert.equal(data.challenge, challenge);
       assert.equal(data.origin, origin);
+      assert.equal(data.crossOrigin, false);
       assert.deepEqual(auth.subarray(0, 32), crypto.createHash('sha256').update('localhost').digest());
       assert.equal(auth[32] & 5, 5);
       const key = crypto.createPublicKey({
@@ -637,6 +641,136 @@ app
               }
             }
             await idle();
+            ses.setWebAuthnHybridHandler(null);
+            entry.states = events.map((event) => ({ state: event.state, type: event.type }));
+            entry.stats = binding.stats();
+            save();
+          }
+        }
+      }
+    }
+    if (enabled) {
+      const raceDrained = () => {
+        const stats = binding.stats();
+        return (
+          !stats.usbRace ||
+          ['usbRace', 'hybridRace'].every((name) => {
+            const endpoint = stats[name];
+            return (
+              !endpoint.pending &&
+              endpoint.held === endpoint.delivered &&
+              endpoint.inFlight === 0 &&
+              endpoint.liveDevices === 0
+            );
+          })
+        );
+      };
+      for (const requestType of ['create', 'get']) {
+        for (const winner of ['usb', 'hybrid']) {
+          const loser = winner === 'usb' ? 'hybrid' : 'usb';
+          const entry = { name: `race-${requestType}-${winner}-first`, ok: false };
+          result.tests.push(entry);
+          const win = await window();
+          const events = [];
+          try {
+            const credentials = binding.prepareRace();
+            ses.setWebAuthnHybridHandler((details, cancel) => {
+              events.push({ id: details.requestId, type: details.requestType, state: details.state, cancel });
+            });
+            let challenge;
+            if (requestType === 'create') {
+              challenge = await start(win.webContents, { timeout: 30000 });
+            } else {
+              challenge = crypto.randomBytes(32).toString('base64url');
+              await win.webContents.executeJavaScript(
+                `(() => {
+                  globalThis.controller = new AbortController(); globalThis.outcome = null;
+                  navigator.credentials.get({ signal: controller.signal, publicKey: {
+                    rpId: 'localhost',
+                    challenge: Uint8Array.from(atob(${JSON.stringify(challenge.replace(/-/g, '+').replace(/_/g, '/'))}), c => c.charCodeAt(0)),
+                    allowCredentials: ${JSON.stringify([credentials.usbId, credentials.hybridId])}.map(id => ({
+                      type: 'public-key', id: Uint8Array.from(id), transports: ['usb', 'hybrid']
+                    })), userVerification: 'required', timeout: 30000
+                  }}).then(c => {
+                    const bytes = b => Array.from(new Uint8Array(b));
+                    globalThis.outcome = { ok: true, id: bytes(c.rawId), clientDataJSON: bytes(c.response.clientDataJSON),
+                      authenticatorData: bytes(c.response.authenticatorData), signature: bytes(c.response.signature) };
+                  }, e => { globalThis.outcome = { ok: false, name: e.name }; });
+                  return true;
+                })()`,
+                true
+              );
+            }
+            await until(() => {
+              const stats = binding.stats();
+              return stats.usbRace.pending && stats.hybridRace.pending;
+            }, 'Both transports must hold successful CTAP responses');
+            const held = binding.stats();
+            assert.equal(held.usbDevices, 1);
+            assert.equal(held.hybridDevices, 1);
+            assert.equal(held.platformDevices, 0);
+            for (const endpoint of [held.usbRace, held.hybridRace]) {
+              assert.equal(endpoint.held, 1);
+              assert.equal(endpoint.delivered, 0);
+              assert.equal(endpoint.inFlight, 0);
+              assert.equal(endpoint.liveDevices, 1);
+            }
+            assert.equal(await win.webContents.executeJavaScript('globalThis.outcome'), null);
+            await until(() => events.some((event) => event.state === 'ready'), 'Hybrid UI must own the mixed request');
+            assert.ok(!events.some((event) => event.state === 'ended'));
+            binding.releaseRaceResponse(winner);
+            const value = await settled(win.webContents);
+            if (requestType === 'create') {
+              verifyRegistration(value, challenge);
+            } else {
+              assert.equal(value.ok, true, value.name);
+              assert.deepEqual(value.id, credentials[winner + 'Id']);
+              verifyAssertion(value, challenge, { key: credentials[winner + 'Key'] });
+            }
+            await idle();
+            await until(() => events.some((event) => event.state === 'ended'), 'Winning response must end the request');
+            const finished = binding.stats();
+            assert.equal(finished[winner + 'Race'].delivered, 1);
+            assert.equal(finished[loser + 'Race'].delivered, 0);
+            assert.equal(finished[loser + 'Race'].pending, true);
+            assert.ok(finished[loser + 'Race'].cancellations > 0, 'Losing operation must receive cancellation');
+            assert.equal(finished.usbRace.liveDevices, 0);
+            assert.equal(finished.hybridRace.liveDevices, 0);
+            assert.equal(events.filter((event) => event.state === 'ended').length, 1);
+            const eventCount = events.length;
+            // The original native callback still runs after its operation and
+            // device are gone. Its weak receiver must safely drop the response.
+            binding.releaseRaceResponse(loser);
+            await until(raceDrained, 'Late losing response must actually be delivered');
+            await pause(50);
+            assert.deepEqual(await win.webContents.executeJavaScript('globalThis.outcome'), value);
+            assert.equal(events.length, eventCount);
+            assert.equal(new Set(events.map((event) => event.id)).size, 1);
+            assert.ok(events.every((event) => event.type === requestType));
+            const terminal = events.filter((event) => event.state === 'ended');
+            assert.equal(terminal.length, 1);
+            assert.equal(terminal[0].cancel, undefined);
+            for (const endpoint of [binding.stats().usbRace, binding.stats().hybridRace]) {
+              assert.equal(endpoint.held, 1);
+              assert.equal(endpoint.delivered, 1);
+            }
+            await idle();
+            assert.equal(binding.stats().mockFailed, false);
+            entry.ok = true;
+          } catch (error) {
+            entry.error = error.stack || String(error);
+          } finally {
+            if (!win.isDestroyed()) {
+              await win.webContents.executeJavaScript('globalThis.controller?.abort()').catch(() => {});
+              win.destroy();
+            }
+            await idle();
+            await until(() => {
+              for (const transport of ['usb', 'hybrid']) {
+                if (binding.stats()[transport + 'Race']?.pending) binding.releaseRaceResponse(transport);
+              }
+              return raceDrained();
+            }, 'Drain in-flight and held responses before resetting the mock');
             ses.setWebAuthnHybridHandler(null);
             entry.states = events.map((event) => ({ state: event.state, type: event.type }));
             entry.stats = binding.stats();

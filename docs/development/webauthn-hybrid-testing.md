@@ -147,6 +147,22 @@ These four cases keep synthetic discoveries alive without authenticators, so
 they test ownership independently of credential completion. They do not test
 competing transports or shared-authenticator scheduling.
 
+Four separate response-race cases exercise creation and authentication with USB
+or hybrid winning first. Each transport has an independent virtual authenticator
+state. Both successful CTAP responses must be held before the chosen winner is
+released. After the renderer result, one terminal owner update and native teardown,
+the losing response is delivered through its original native callback. Counters
+prove both deliveries and cancellation of the loser; the renderer result and
+terminal count must remain unchanged. Authentication checks the winning synthetic
+credential ID and signature against that transport's public key. Creation uses
+the same challenge/origin/RP/UP/UV/public-key checks as the other creation cases.
+
+These cases cover delayed synthetic success responses, including one delivered
+after operation/device teardown. They do not establish simultaneous live-response
+scheduling, physical USB/BLE or caBLE interoperability, network-context resolver
+behavior, or successful cancellation on actual hardware. No production behavior
+changes are needed, and this test-only change does not require a new user phone test.
+
 These checks validate native integration and lifecycle behavior, not phone
 interoperability, network transport or RP enrollment. The separate
 [user-operated phone result](#user-operated-phone-result) records the limited live evidence.
@@ -214,6 +230,29 @@ above. Core dumps were disabled; the supervisor sent no signals and retained
 the private test directories. The pending-creation app-quit case was not rerun
 in this follow-up; its earlier result remains recorded above. No new phone
 ceremony or shutdown investigation was performed.
+
+## Competing transport response validation
+
+On 2026-10-07, the rebuilt isolated Linux executable passed 74 targeted synthetic
+cases: 43 in the enabled creation fixture (35 earlier cases, four concurrent
+create/get ownership cases and four USB/hybrid response races), one creation
+no-handler control, 26 authentication cases and four authentication no-handler
+controls. Both winner orders passed for creation and authentication.
+
+Each race held and delivered exactly one successful response per transport,
+observed cancellation of the loser, and finished with no held/in-flight callbacks,
+live virtual devices, discoveries or adapter observers. The losing response was
+delivered after native teardown, leaving the verified renderer result and single
+terminal owner update unchanged. These are synthetic callback-ordering results,
+not evidence for real hardware, the network-context resolver or simultaneous
+live-response scheduling.
+
+GN dependency and changed-source checks passed, and independent source review
+found no remaining blockers. Production behavior and the previously supplied
+user-test runtime were unchanged. The build still included the separately
+recorded storage patch. The supervisor sent no signals, core dumps were disabled,
+and private test directories were retained. The pending-creation app-quit case
+was not rerun; shutdown investigation remains deferred.
 
 ## User-operated phone result
 

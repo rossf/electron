@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 // Test-only linked binding. Never linked into the production Electron target.
+#include <array>
 #include <cstdio>
 #include <memory>
 #include <set>
@@ -12,8 +13,10 @@
 #include <vector>
 #include "base/check.h"
 #include "base/functional/bind.h"
+#include "base/location.h"
 #include "base/memory/ref_counted.h"
 #include "base/no_destructor.h"
+#include "base/task/single_thread_task_runner.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/scoped_authenticator_environment_for_testing.h"
@@ -22,6 +25,8 @@
 #include "device/fido/cable/v2_handshake.h"
 #include "device/fido/fido_device_discovery.h"
 #include "device/fido/fido_discovery_factory.h"
+#include "device/fido/public/fido_constants.h"
+#include "device/fido/public_key.h"
 #include "device/fido/virtual_ctap2_device.h"
 #include "gin/arguments.h"
 #include "gin/data_object_builder.h"
@@ -34,6 +39,97 @@
 namespace {
 using Adapter = device::BluetoothAdapter;
 using Transport = device::FidoTransportProtocol;
+
+struct RaceEndpoint {
+  scoped_refptr<device::VirtualFidoDevice::State> state =
+      base::MakeRefCounted<device::VirtualFidoDevice::State>();
+  base::OnceClosure response;
+  int held = 0;
+  int delivered = 0;
+  int in_flight = 0;
+  int cancellations = 0;
+  int live_devices = 0;
+};
+
+struct RaceControl {
+  std::array<RaceEndpoint, 2> endpoints;
+};
+
+bool RaceIdle(const std::shared_ptr<RaceControl>& race) {
+  if (!race)
+    return true;
+  for (const auto& endpoint : race->endpoints) {
+    if (endpoint.response || endpoint.held != endpoint.delivered ||
+        endpoint.in_flight || endpoint.live_devices) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Generate normal virtual CTAP responses, but hold successful credential
+// responses outside the device. A response already in flight can arrive after
+// cancellation and device teardown; retain no raw device or V8 references.
+class RaceDevice final : public device::VirtualCtap2Device {
+ public:
+  RaceDevice(std::shared_ptr<RaceControl> race,
+             size_t index,
+             const Config& config)
+      : VirtualCtap2Device(race->endpoints[index].state, config),
+        race_(std::move(race)),
+        index_(index) {
+    ++race_->endpoints[index_].live_devices;
+  }
+  ~RaceDevice() override { --race_->endpoints[index_].live_devices; }
+
+  CancelToken DeviceTransact(std::vector<uint8_t> command,
+                             DeviceCallback callback) override {
+    const bool credential =
+        !command.empty() &&
+        (command.front() ==
+             static_cast<uint8_t>(
+                 device::CtapRequestCommand::kAuthenticatorMakeCredential) ||
+         command.front() ==
+             static_cast<uint8_t>(
+                 device::CtapRequestCommand::kAuthenticatorGetAssertion));
+    if (!credential)
+      return VirtualCtap2Device::DeviceTransact(std::move(command),
+                                                std::move(callback));
+    ++race_->endpoints[index_].in_flight;
+    return VirtualCtap2Device::DeviceTransact(
+        std::move(command),
+        base::BindOnce(
+            [](std::shared_ptr<RaceControl> race, size_t index,
+               DeviceCallback callback,
+               std::optional<std::vector<uint8_t>> response) {
+              auto& endpoint = race->endpoints[index];
+              CHECK_GT(endpoint.in_flight, 0);
+              --endpoint.in_flight;
+              if (!response || response->empty() ||
+                  response->front() !=
+                      static_cast<uint8_t>(
+                          device::CtapDeviceResponseCode::kSuccess)) {
+                std::move(callback).Run(std::move(response));
+                return;
+              }
+              CHECK(!endpoint.response);
+              ++endpoint.held;
+              endpoint.response =
+                  base::BindOnce(std::move(callback), std::move(response));
+            },
+            race_, index_, std::move(callback)));
+  }
+
+  void Cancel(CancelToken token) override {
+    ++race_->endpoints[index_].cancellations;
+    VirtualCtap2Device::Cancel(token);
+  }
+
+ private:
+  std::shared_ptr<RaceControl> race_;
+  const size_t index_;
+};
+
 struct ProbeState {
   int configured = 0;
   int live = 0;
@@ -46,6 +142,7 @@ struct ProbeState {
   bool hybrid_device = false;
   bool platform_device = false;
   bool pending_only = false;
+  std::shared_ptr<RaceControl> race;
   bool resident_keys = true;
   bool uv_support = true;
   bool uv_success = true;
@@ -69,16 +166,28 @@ class Discovery final : public device::FidoDeviceDiscovery {
 
  private:
   void StartInternal() override {
+    const bool racing =
+        state_->race && (transport_ == Transport::kUsbHumanInterfaceDevice ||
+                         transport_ == Transport::kHybrid);
     if (!state_->pending_only &&
-        transport_ == state_->device_state->transport) {
+        (racing || transport_ == state_->device_state->transport)) {
       device::VirtualCtap2Device::Config config;
       config.is_platform_authenticator = state_->platform_device;
       config.internal_uv_support = state_->uv_support;
       config.resident_key_support = state_->resident_keys;
       config.resident_credential_storage = 64;
       config.user_verification_succeeds = state_->uv_success;
-      AddDevice(std::make_unique<device::VirtualCtap2Device>(
-          state_->device_state, config));
+      if (racing) {
+        // The two-entry allow list must fit in one operation, so the gate
+        // delays its final response rather than an intermediate silent probe.
+        config.max_credential_count_in_list = 2;
+        config.max_credential_id_length = 64;
+        AddDevice(std::make_unique<RaceDevice>(
+            state_->race, transport_ == Transport::kHybrid ? 1 : 0, config));
+      } else {
+        AddDevice(std::make_unique<device::VirtualCtap2Device>(
+            state_->device_state, config));
+      }
       if (transport_ == Transport::kUsbHumanInterfaceDevice)
         ++state_->usb_devices;
       else if (transport_ == Transport::kHybrid)
@@ -206,10 +315,11 @@ void Install(int process_id, int routing_id, gin::Arguments* args) {
 
 bool PrepareProbe(bool powered, bool press, gin::Arguments* args) {
   if (!Current() || Current()->state->live ||
-      !Current()->state->observers.empty()) {
+      !Current()->state->observers.empty() ||
+      !RaceIdle(Current()->state->race)) {
     args->ThrowTypeError(
         "Cannot reset while native request owns discovery or adapter "
-        "observers");
+        "observers, or race responses remain pending");
     return false;
   }
   auto& state = *Current()->state;
@@ -218,6 +328,7 @@ bool PrepareProbe(bool powered, bool press, gin::Arguments* args) {
   state.hybrid_configured = false;
   state.hybrid_device = state.platform_device = false;
   state.pending_only = false;
+  state.race.reset();
   state.resident_keys = state.uv_support = state.uv_success = true;
   state.request_type.clear();
   state.device_state->transport = Transport::kUsbHumanInterfaceDevice;
@@ -237,6 +348,55 @@ void PreparePending(gin::Arguments* args) {
   // shared virtual credential state has only one pending CTAP callback slot;
   // sharing it across devices would couple otherwise independent cancellations.
   Current()->state->pending_only = true;
+}
+
+void PrepareRace(gin::Arguments* args) {
+  if (!PrepareProbe(true, true, args))
+    return;
+  auto race = std::make_shared<RaceControl>();
+  Current()->state->race = race;
+  auto result = gin::DataObjectBuilder(args->isolate());
+  for (size_t index = 0; index < race->endpoints.size(); ++index) {
+    auto& state = race->endpoints[index].state;
+    state->transport =
+        index == 0 ? Transport::kUsbHumanInterfaceDevice : Transport::kHybrid;
+    state->fingerprints_enrolled = true;
+    const std::vector<uint8_t> id{static_cast<uint8_t>(index + 1)};
+    CHECK(state->InjectRegistration(id, "localhost"));
+    auto key = state->registrations.at(id).private_key->GetPublicKey();
+    CHECK(key->der_bytes);
+    result
+        .Set(index == 0 ? "usbId" : "hybridId",
+             std::vector<int>(id.begin(), id.end()))
+        .Set(index == 0 ? "usbKey" : "hybridKey",
+             std::vector<int>(key->der_bytes->begin(), key->der_bytes->end()));
+  }
+  args->Return(result.Build());
+}
+
+void ReleaseRaceResponse(const std::string& transport, gin::Arguments* args) {
+  if (!Current() || !Current()->state->race ||
+      (transport != "usb" && transport != "hybrid")) {
+    args->ThrowTypeError("Requires active synthetic USB/hybrid race");
+    return;
+  }
+  auto race = Current()->state->race;
+  const size_t index = transport == "usb" ? 0 : 1;
+  auto response = std::move(race->endpoints[index].response);
+  if (!response) {
+    args->ThrowTypeError("No held response for this transport");
+    return;
+  }
+  // Move the held callback out before capturing race in this posted task, so
+  // race never owns a closure that retains race itself. Delivery stays async.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](std::shared_ptr<RaceControl> race, size_t index,
+                        base::OnceClosure response) {
+                       ++race->endpoints[index].delivered;
+                       std::move(response).Run();
+                     },
+                     std::move(race), index, std::move(response)));
 }
 
 void PrepareCreation(bool powered,
@@ -296,8 +456,8 @@ void SetPowered(bool powered, gin::Arguments* args) {
 v8::Local<v8::Value> Stats(v8::Isolate* isolate) {
   CHECK(Current());
   auto& state = *Current()->state;
-  return gin::DataObjectBuilder(isolate)
-      .Set("configured", state.configured)
+  auto result = gin::DataObjectBuilder(isolate);
+  result.Set("configured", state.configured)
       .Set("live", state.live)
       .Set("usbStarted", state.usb_started)
       .Set("hybridStarted", state.hybrid_started)
@@ -306,13 +466,28 @@ v8::Local<v8::Value> Stats(v8::Isolate* isolate) {
       .Set("platformDevices", state.platform_devices)
       .Set("requestType", state.request_type)
       .Set("observers", static_cast<int>(state.observers.size()))
-      .Set("mockFailed", testing::UnitTest::GetInstance()->Failed())
-      .Build();
+      .Set("mockFailed", testing::UnitTest::GetInstance()->Failed());
+  if (state.race) {
+    for (size_t index = 0; index < state.race->endpoints.size(); ++index) {
+      const auto& endpoint = state.race->endpoints[index];
+      result.Set(index == 0 ? "usbRace" : "hybridRace",
+                 gin::DataObjectBuilder(isolate)
+                     .Set("held", endpoint.held)
+                     .Set("pending", !endpoint.response.is_null())
+                     .Set("delivered", endpoint.delivered)
+                     .Set("inFlight", endpoint.in_flight)
+                     .Set("cancellations", endpoint.cancellations)
+                     .Set("liveDevices", endpoint.live_devices)
+                     .Build());
+    }
+  }
+  return result.Build();
 }
 
 bool TearDownHarness() {
   if (!Current() || Current()->state->live ||
-      !Current()->state->observers.empty()) {
+      !Current()->state->observers.empty() ||
+      !RaceIdle(Current()->state->race)) {
     return false;
   }
   bool ok =
@@ -342,6 +517,8 @@ void Initialize(v8::Local<v8::Object> exports,
   dict.SetMethod("install", &Install);
   dict.SetMethod("prepare", &Prepare);
   dict.SetMethod("preparePending", &PreparePending);
+  dict.SetMethod("prepareRace", &PrepareRace);
+  dict.SetMethod("releaseRaceResponse", &ReleaseRaceResponse);
   dict.SetMethod("prepareCreation", &PrepareCreation);
   dict.SetMethod("preparePlatform", &PreparePlatform);
   dict.SetMethod("qrRequestType", &QrRequestType);
