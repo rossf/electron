@@ -10,7 +10,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const mode = process.env.PASSKEY_CREATION_TEST_MODE;
-assert.ok(['enabled', 'creation-disabled', 'backend-disabled', 'disabled', 'shutdown'].includes(mode));
+assert.ok(['enabled', 'no-handler', 'shutdown'].includes(mode));
 assert.ok(process.env.HYBRID_TEST_PROFILE && process.env.HYBRID_TEST_RESULT);
 const enabled = ['enabled', 'shutdown'].includes(mode);
 const result = {
@@ -45,10 +45,6 @@ app.enableSandbox();
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('disable-background-networking');
 app.commandLine.appendSwitch('disable-component-update');
-if (!['backend-disabled', 'disabled'].includes(mode)) app.commandLine.appendSwitch('enable-electron-webauthn-hybrid');
-if (!['creation-disabled', 'disabled'].includes(mode)) {
-  app.commandLine.appendSwitch('enable-electron-webauthn-hybrid-creation');
-}
 app.on('window-all-closed', () => {});
 const serve = (_req, res) => {
   res.writeHead(200, {
@@ -94,7 +90,12 @@ app
     async function window(targetSession = ses) {
       const win = new BrowserWindow({
         show: false,
-        webPreferences: { session: targetSession, sandbox: true, contextIsolation: true, nodeIntegration: false }
+        webPreferences: {
+          session: targetSession,
+          sandbox: true,
+          contextIsolation: true,
+          nodeIntegration: false
+        }
       });
       windows.add(win);
       win.on('closed', () => windows.delete(win));
@@ -205,7 +206,11 @@ app
       assert.equal(data.origin, origin);
       assert.deepEqual(auth.subarray(0, 32), crypto.createHash('sha256').update('localhost').digest());
       assert.equal(auth[32] & 5, 5);
-      const key = crypto.createPublicKey({ key: Buffer.from(registration.key), format: 'der', type: 'spki' });
+      const key = crypto.createPublicKey({
+        key: Buffer.from(registration.key),
+        format: 'der',
+        type: 'spki'
+      });
       assert.ok(
         crypto.verify(
           'sha256',
@@ -220,7 +225,7 @@ app
       binding.prepareCreation(true, false, true, true, true, true);
       ses.setWebAuthnHybridHandler((details) => {
         try {
-          if (details.state !== 'ready') return true;
+          if (details.state !== 'ready') return;
           assert.equal(details.requestType, 'create');
           assert.equal(binding.qrRequestType(details.qrCode), 'create');
           assert.ok(binding.stats().live > 0);
@@ -233,7 +238,6 @@ app
         } catch (error) {
           fatal(error);
         }
-        return true;
       });
       await start(win.webContents, { timeout: 10000 });
       setTimeout(() => app.exit(2), 10000);
@@ -265,6 +269,8 @@ app
           ['sync-cancel', {}],
           ['stale-cancel', {}],
           ['handler-false', {}],
+          ['handler-object', {}],
+          ['handler-undefined', {}],
           ['handler-promise', {}],
           ['handler-throw', {}],
           ['owner-replaced', {}],
@@ -275,7 +281,7 @@ app
           ['destroy', {}],
           ['iframe-remove', {}]
         ]
-      : [['default-off-existing-usb', {}]];
+      : [['no-handler-existing-usb', {}]];
     let staleCancel;
     for (const [name, options] of cases) {
       const entry = { name, ok: false };
@@ -297,6 +303,8 @@ app
         'sync-cancel',
         'stale-cancel',
         'handler-false',
+        'handler-object',
+        'handler-undefined',
         'handler-promise',
         'handler-throw',
         'owner-replaced',
@@ -332,15 +340,19 @@ app
       );
       if (name === 'platform-success') binding.preparePlatform();
       ses.setWebAuthnHybridHandler(
-        name === 'unowned-usb'
+        !enabled || name === 'unowned-usb'
           ? null
           : (details, currentCancel) => {
-              events.push({ state: details.state, id: details.requestId, type: details.requestType });
+              events.push({
+                state: details.state,
+                id: details.requestId,
+                type: details.requestType
+              });
               try {
                 assert.equal(details.requestType, expectedType);
                 if (details.state === 'ended') {
                   assert.equal(currentCancel, undefined);
-                  return true;
+                  return;
                 }
                 assert.equal(details.origin, expectedOrigin);
                 assert.equal(details.relyingPartyId, 'localhost');
@@ -363,6 +375,8 @@ app
                   staleCancel();
                 }
                 if (name === 'handler-false') return false;
+                if (name === 'handler-object') return {};
+                if (name === 'handler-undefined') return;
                 if (name === 'handler-promise') return Promise.resolve(true);
                 if (name === 'handler-throw') throw new Error('synthetic-owner-failure');
                 if (name === 'navigate') win.loadURL(origin + '/next').catch((e) => errors.push(e));
@@ -375,28 +389,33 @@ app
               } catch (error) {
                 if (name === 'handler-throw' && error.message === 'synthetic-owner-failure') throw error;
                 errors.push(error);
+                currentCancel?.();
               }
-              return true;
             }
       );
       try {
         let challenge;
         try {
-          challenge = await start(target, { timeout: held && name !== 'timeout' ? 5000 : 1000, ...options });
+          challenge = await start(target, {
+            timeout: held && name !== 'timeout' ? 5000 : 1000,
+            ...options
+          });
         } catch (error) {
           if (!teardown || !events.some((e) => e.state === 'ready')) throw error;
         }
         if (teardown) {
           await until(() => events.some((e) => e.state === 'ended'), 'No terminal update after frame teardown');
-        } else if (
-          held &&
-          !['sync-cancel', 'handler-false', 'handler-promise', 'handler-throw', 'timeout'].includes(name)
-        ) {
+        } else if (held && !['sync-cancel', 'handler-throw', 'timeout'].includes(name)) {
           await until(() => cancel, 'Missing creation owner callback');
+          if (name.startsWith('handler-')) {
+            await pause(50);
+            assert.ok(binding.stats().live > 0, 'Ignored return keeps native discovery alive');
+            assert.ok(!events.some((event) => event.state === 'ended'));
+            assert.equal(await target.executeJavaScript('globalThis.outcome'), null, 'Return values do not cancel');
+          }
           if (name === 'owner-replaced') {
             ses.setWebAuthnHybridHandler(() => {
               errors.push(new Error('Replacement stole creation'));
-              return true;
             });
           }
           if (name === 'ble-recovery') {

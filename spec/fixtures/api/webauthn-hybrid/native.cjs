@@ -45,7 +45,6 @@ app.enableSandbox();
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('disable-background-networking');
 app.commandLine.appendSwitch('disable-component-update');
-if (enabled) app.commandLine.appendSwitch('enable-electron-webauthn-hybrid');
 app.on('window-all-closed', () => {});
 const serve = (_req, res) => {
   res.writeHead(200, {
@@ -81,7 +80,9 @@ app
       callback({ cancel: !allowedOrigins.has(new URL(details.url).origin) })
     );
     assert.equal(typeof ses.setWebAuthnHybridHandler, 'function', 'Native hybrid handler API is required');
-    const revision = 'session-handler';
+    assert.throws(() => ses.setWebAuthnHybridHandler(123), /null or function/);
+    assert.throws(() => ses.setWebAuthnHybridHandler(undefined), /null or function/);
+    const revision = 'session-handler-void';
     result.revision = revision;
     result.version = process.versions.electron;
     const windows = new Set();
@@ -101,16 +102,12 @@ app
       return win;
     }
     function owner(fn) {
-      ses.setWebAuthnHybridHandler(fn);
+      ses.setWebAuthnHybridHandler(enabled ? fn : null);
     }
     const first = await window();
     binding.install(first.webContents.mainFrame.processId, first.webContents.mainFrame.routingId);
     binding.prepare(true, true);
-    const registrationEvents = [];
-    owner((details) => {
-      registrationEvents.push(details.state);
-      return true;
-    });
+    owner(null);
     const registration = await first.webContents.executeJavaScript(
       `(async () => {
     const c = await navigator.credentials.create({ signal: AbortSignal.timeout(5000), publicKey: {
@@ -128,11 +125,10 @@ app
       }, 'Native discovery/adapter observers leaked');
     }
     await idle();
-    assert.equal(binding.stats().configured, 0, 'create must not enter hybrid configuration');
-    assert.equal(registrationEvents.length, 0, 'create must not invoke the installed hybrid handler');
+    assert.equal(binding.stats().configured, 0, 'unowned create must not enter hybrid configuration');
     assert.ok(binding.stats().usbStarted > 0, 'create must use the existing synthetic USB registration path');
     assert.ok(registration.id.length && registration.key.length);
-    result.tests.push({ name: 'owned-create-uses-existing-registration', ok: true });
+    result.tests.push({ name: 'unowned-create-uses-existing-registration', ok: true });
     owner(null);
     first.destroy();
     const consumed = new Set();
@@ -218,7 +214,7 @@ app
       : [
           ['unowned-usb-success', true, true],
           ['other-session-usb-success', true, true],
-          ['owned-disabled-usb-success', true, true]
+          ['no-handler-usb-success', true, true]
         ];
     for (const [name, powered, press] of cases) {
       const entry = { name, ok: false };
@@ -257,7 +253,7 @@ app
           events.push({ state: details.state, requestId: details.requestId });
           if (details.state === 'ended') {
             if (name === 'ended-throw') throw new Error('intentional terminal failure');
-            return true;
+            return;
           }
           assert.equal(details.origin, expectedOrigin);
           assert.equal(details.relyingPartyId, 'localhost');
@@ -291,7 +287,6 @@ app
               .executeJavaScript("document.querySelector('#test-frame').remove()")
               .catch((e) => errors.push(e));
           }
-          return true;
         } catch (error) {
           if (
             (name === 'handler-throw' && error.message === 'intentional handler failure') ||
@@ -300,7 +295,7 @@ app
             throw error;
           }
           errors.push(error);
-          return false;
+          currentCancel?.();
         }
       };
       owner(name === 'unowned-usb-success' ? null : handler);
@@ -316,7 +311,7 @@ app
         }
         if (name.endsWith('usb-success')) {
           verify(await outcome(win), challenge);
-          if (['unowned-usb-success', 'other-session-usb-success', 'owned-disabled-usb-success'].includes(name)) {
+          if (['unowned-usb-success', 'other-session-usb-success', 'no-handler-usb-success'].includes(name)) {
             assert.equal(binding.stats().configured, 0);
             assert.equal(events.length, 0);
           } else if (name === 'owned-ble-off-usb-success') {
@@ -338,10 +333,20 @@ app
             () => events.some((e) => e.state === 'ended'),
             'Missing terminal notification after frame teardown'
           );
-        } else if (name === 'sync-cancel' || name.startsWith('handler-')) {
+        } else if (name === 'sync-cancel' || name === 'handler-throw') {
           assert.equal((await outcome(win)).name, 'NotAllowedError');
         } else {
           await until(() => cancel, 'No owned native callback');
+          if (name.startsWith('handler-')) {
+            await pause();
+            assert.ok(binding.stats().live > 0, 'Ignored return keeps native discovery alive');
+            assert.ok(!events.some((event) => event.state === 'ended'));
+            assert.equal(
+              await win.webContents.executeJavaScript('globalThis.outcome'),
+              null,
+              'Return values do not cancel'
+            );
+          }
           if (name === 'ble-loss-cancel') {
             binding.setPowered(false);
             assert.equal(events.at(-1).state, 'unavailable');
@@ -354,7 +359,6 @@ app
           if (name === 'owner-replaced') {
             owner(() => {
               errors.push(new Error('Replacement stole active request'));
-              return true;
             });
           }
           if (name === 'owner-removed') owner(null);
@@ -410,7 +414,6 @@ app
           requests.set(details.requestId, request);
         }
         request.states.push(details.state);
-        return true;
       });
       try {
         await start(left);

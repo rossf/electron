@@ -1022,32 +1022,31 @@ win.webContents.session.setCertificateVerifyProc((request, callback) => {
 
 #### `ses.setWebAuthnHybridHandler(handler)` _Linux_ _Experimental_
 
-Experimental prototype; not a production API. Requires the default-off
-process switch `enable-electron-webauthn-hybrid` and a handler registered on this
-session before the request. A process switch without a session handler does not
-configure native hybrid discovery. Creation additionally requires the separate
-`enable-electron-webauthn-hybrid-creation` process switch. Without that second
-switch, registration keeps the existing native behavior.
+Experimental Linux prototype; not a production API. Registering a handler opts
+this Session into native hybrid discovery for eligible authentication and creation
+requests. No process switch is required. Sessions without a handler keep their
+existing native behavior.
 
-* `handler` Function\<boolean\> | null
+* `handler` Function | null
   * `details` Object
     * `requestId` string - Unique identifier for this native ceremony.
     * `requestType` string - `get` for authentication or `create` for registration,
       including the terminal `ended` update. Use distinct UI wording for each.
     * `state` string - `ready`, `unavailable`, or `ended`.
-    * `origin` string - Chromium-validated calling origin, except in `ended`.
-    * `relyingPartyId` string - Chromium-validated RP ID, except in `ended`.
-    * `frame` WebFrameMain - Initiating frame, except in `ended`.
-    * `qrCode` string - Native transient QR payload for `ready`; empty for
+    * `origin` string (optional) - Chromium-validated calling origin, except in `ended`.
+    * `relyingPartyId` string (optional) - Chromium-validated RP ID, except in `ended`.
+    * `frame` WebFrameMain (optional) - Initiating frame, except in `ended`.
+    * `qrCode` string (optional) - Native transient QR payload for `ready`; empty for
       `unavailable`; absent for `ended`. Never log or persist it.
   * `cancel` Function | undefined - Explicitly cancels the whole native request,
     including alternative transports. Remains live while unavailable; duplicate
     or stale calls are inert. Absent for `ended`.
 
-The handler must return literal `true` synchronously to acknowledge
-`ready`/`unavailable` updates. Promises, objects, other values, missing returns
-and exceptions cancel this owned request. The return value for `ended` is
-ignored; exceptions during terminal cleanup are contained.
+The handler returns no value. Return values, including Promises, are ignored;
+use `cancel()` to decline the whole ceremony. Synchronous exceptions or a callback
+that can no longer be invoked cancel the request. Returned Promises are not awaited;
+handle asynchronous errors in the application and call the request's cancel
+function when appropriate. Exceptions during terminal cleanup are contained.
 
 Calling this setter establishes trusted main-process UI ownership. The native request
 snapshots the handler without running JavaScript during discovery configuration.
@@ -1069,8 +1068,8 @@ middle of native destruction. Clear the request UI and QR data. This is not proo
 that the RP accepted an assertion. Shutdown may prevent delivery, so close UI on
 session/app shutdown too.
 
-Modal `navigator.credentials.get()` is eligible. With both switches enabled,
-modal `navigator.credentials.create()` is eligible too. Conditional requests,
+Modal `navigator.credentials.get()` and `navigator.credentials.create()` are
+eligible. Conditional requests,
 CMTG-key requests and virtual test overrides are excluded. Chromium filters
 platform-only creation before discovery; those requests do not present hybrid
 UI or get cancelled through this owner.

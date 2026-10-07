@@ -11,7 +11,6 @@
 #include <utility>
 
 #include "base/base64url.h"
-#include "base/command_line.h"
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
@@ -256,25 +255,17 @@ void ElectronAuthenticatorRequestClientDelegate::ConfigureDiscoveries(
   auto* session = api::Session::FromBrowserContext(rfh->GetBrowserContext());
   if (!session || !session->Get())
     return;
-  const bool enabled = base::CommandLine::ForCurrentProcess()->HasSwitch(
-      "enable-electron-webauthn-hybrid");
-  const bool creation_enabled =
-      base::CommandLine::ForCurrentProcess()->HasSwitch(
-          "enable-electron-webauthn-hybrid-creation");
   const bool modal_request =
       presentation_ == UIPresentation::kModal &&
       request_source == RequestSource::kWebAuthentication &&
       (request_type == device::FidoRequestType::kGetAssertion ||
-       (creation_enabled &&
-        request_type == device::FidoRequestType::kMakeCredential)) &&
+       request_type == device::FidoRequestType::kMakeCredential) &&
       !cmtg_key_requested;
   // Native snapshot only: never invoke JavaScript while the outer Chromium
   // caller is still constructing its request handler.
   auto owner = session->Get()->GetWebAuthnHybridHandler();
-  if (!owner)
-    return;
   if (!hybrid_state_.Configure(
-          enabled, modal_request,
+          !owner.is_null(), modal_request,
           IsVirtualEnvironmentEnabled() ||
               (discovery_factory && discovery_factory->IsTestOverride()),
           discovery_factory != nullptr)) {
@@ -386,7 +377,7 @@ void ElectronAuthenticatorRequestClientDelegate::EmitHybridRequest(
           weak_this));
   auto owner = hybrid_handler_;
   v8::TryCatch try_catch(isolate);
-  auto acknowledgement = owner.Run(details, cancel);
+  const bool delivered = owner.Run(details, cancel);
   const bool owner_threw = try_catch.HasCaught();
   if (try_catch.HasTerminated())
     return;
@@ -395,7 +386,7 @@ void ElectronAuthenticatorRequestClientDelegate::EmitHybridRequest(
   if (!weak_this)
     return;
   // Owner failure is a whole-ceremony error, unlike transport unavailability.
-  if (owner_threw || acknowledgement.IsEmpty() || !acknowledgement->IsTrue())
+  if (owner_threw || !delivered)
     CancelHybridRequest();
 }
 

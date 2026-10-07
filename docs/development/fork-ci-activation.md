@@ -7,11 +7,13 @@ and synthetic browser tests remain separate local validation steps.
 
 The candidate workflow runs on this fork's own authentication, storage and CI
 branches targeting `main`, `baseline/electron-v43.7.0-fork-ci` or the
-authentication base `experimental/linux-phone-passkey-main`. The explicit
+authentication base `experimental/linux-phone-passkey-main` or creation base
+`experimental/linux-phone-passkey-create-main`. The explicit
 head allowlist contains `experimental/linux-phone-passkey-preservation`,
 `experimental/linux-phone-passkey-main`, `fix/in-memory-storage-shutdown` and
 `docs/fork-ci-active-status`. This creation branch additionally permits
-`experimental/linux-phone-passkey-create-main`. Events are `opened`, `reopened` and `synchronize`.
+`experimental/linux-phone-passkey-create-main`; the API simplification adds
+`experimental/linux-phone-passkey-api-main`. Events are `opened`, `reopened` and `synchronize`.
 It checks the exact head against GitHub's resolved merge base:
 
 - Electron's changed-file C++, GN, Python, JavaScript and documentation linters,
@@ -19,7 +21,9 @@ It checks the exact head against GitHub's resolved merge base:
 - API declaration generation, the actual upstream TypeScript smoke compiler and
   documentation TypeScript checks. Authentication heads also compile a small
   positive/negative check for `setWebAuthnHybridHandler` against the generated API.
-  Creation also checks the `requestType` field.
+  Creation also checks the `requestType` field. The simplification additionally
+  checks no-return handlers, a void return type and rejection of the old boolean
+  acknowledgement type.
 - The standalone C++ lifetime-policy test, when present on that source head.
 - Chromium patch registry consistency. When the storage shutdown patch is
   present, the complete one-file patch must apply to the source version pinned

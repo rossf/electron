@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 import resource
-import signal
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -21,26 +21,22 @@ def no_core():
 
 
 def invoke(command, environment, timeout, expected_output=None):
-    with subprocess.Popen(command, env=environment,
-                          stdout=subprocess.PIPE if expected_output else subprocess.DEVNULL,
-                          stderr=subprocess.PIPE, start_new_session=True) as child:
-        try:
-            output, errors = child.communicate(timeout=timeout)
-            if child.returncode:
-                # Only synthetic fixtures run here. Keep diagnostics on the
-                # local terminal, not in committed result files or artifacts.
-                print(errors.decode(errors="replace")[-4000:], file=sys.stderr)
-            if expected_output and expected_output not in (output or b""):
-                raise RuntimeError("Synthetic child did not verify native shutdown teardown")
-            return child.returncode
-        except subprocess.TimeoutExpired:
-            os.killpg(child.pid, signal.SIGTERM)
-            try:
-                child.communicate(timeout=5)
-            except subprocess.TimeoutExpired:
-                os.killpg(child.pid, signal.SIGKILL)
-                child.communicate()
-            raise RuntimeError("Synthetic child exceeded its time limit") from None
+    # Do not use Popen as a context manager: its exit waits indefinitely after a
+    # timeout. Failure retains the fresh test directory without killing children.
+    # pylint: disable-next=consider-using-with
+    child = subprocess.Popen(command, env=environment,
+                             stdout=subprocess.PIPE if expected_output else subprocess.DEVNULL,
+                             stderr=subprocess.PIPE, start_new_session=True)
+    try:
+        output, errors = child.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Synthetic child timed out; no signals sent; test directory retained") from None
+    if child.returncode:
+        # Synthetic fixtures only; diagnostics stay on the local terminal.
+        print(errors.decode(errors="replace")[-4000:], file=sys.stderr)
+    if expected_output and expected_output not in (output or b""):
+        raise RuntimeError("Synthetic child did not verify native shutdown teardown")
+    return child.returncode
 
 
 def main():
@@ -58,8 +54,9 @@ def main():
     for key in ("NODE_OPTIONS", "NODE_PATH", "ELECTRON_RUN_AS_NODE"):
         environment.pop(key, None)
     results = []
-    with tempfile.TemporaryDirectory(prefix="electron-hybrid-tests-") as temporary:
-        directory = Path(temporary)
+    directory = Path(tempfile.mkdtemp(prefix="electron-hybrid-tests-"))
+    completed = False
+    try:
 
         def run_case(name, command, extra=None, timeout=30, expected_output=None):
             profile = directory / name
@@ -85,7 +82,7 @@ def main():
                 parser.error("Native tests require the explicitly named mock executable")
         if args.suite in ("all", "native"):
             for enabled in (True, False):
-                name = "native-enabled" if enabled else "native-disabled"
+                name = "native-enabled" if enabled else "native-no-handler"
                 result_file = directory / (name + ".json")
                 run_id = str(uuid.uuid4())
                 run_case(name, [binary, FIXTURES / "native.cjs"], {
@@ -104,7 +101,7 @@ def main():
                 results[-1]["cases"] = len(result["tests"])
 
         if args.suite in ("all", "creation"):
-            for mode in ("enabled", "creation-disabled", "backend-disabled", "disabled", "shutdown"):
+            for mode in ("enabled", "no-handler", "shutdown"):
                 name = "creation-" + mode
                 result_file = directory / (name + ".json")
                 run_id = str(uuid.uuid4())
@@ -127,7 +124,19 @@ def main():
                     raise RuntimeError("Creation fixture did not request app quit")
                 results[-1]["cases"] = len(result["tests"])
 
-    print(json.dumps({"ok": True, "syntheticOnly": True, "results": results}, indent=2))
+        completed = True
+    finally:
+        # Browser descendants may change process groups. Parent exit and pipe
+        # closure cannot establish that every native descendant has stopped.
+        # Retain native profiles even on success; never delete a live profile.
+        if completed and args.suite == "state":
+            shutil.rmtree(directory)
+        else:
+            print(f"Synthetic test directory retained: {directory}", file=sys.stderr)
+
+    print(json.dumps({"ok": True, "syntheticOnly": True,
+                      "supervisorSignalsSent": 0, "profilesRetained": args.suite != "state",
+                      "results": results}, indent=2))
 
 
 if __name__ == "__main__":

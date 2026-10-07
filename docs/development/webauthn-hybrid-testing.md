@@ -10,7 +10,7 @@ Keep DCHECKs enabled for native lifetime checks.
 Use this branch in a normal Electron dependency checkout. `DEPS` pins Chromium.
 The independent in-memory storage task-trait fix and its reproducer are tracked
 on `rossf/electron` branch `fix/in-memory-storage-shutdown`; they are not part of
-this authentication diff. The previously validated fixed binary combined both
+this API diff. The previously validated fixed binary combined both
 changes. If testing that combination, import the companion patch once through
 Electron's dependency patch list and record both source heads.
 See [Electron's build instructions](build-instructions-linux.md) for toolchain
@@ -24,7 +24,7 @@ python3 electron/script/run-webauthn-hybrid-tests.py --out-dir out/Testing
 ```
 
 The runner compiles the dependency-free state test with a local C++17 compiler,
-then executes enabled and disabled authentication suites and the creation modes
+then executes handler and no-handler authentication suites and the creation modes
 described below. A usable Linux
 display is required for Electron; an existing Xvfb session is also suitable.
 The mock binding is linked only into the separately named test executable.
@@ -48,13 +48,16 @@ The native suite covers synchronous/duplicate/stale cancellation, BLE
 unavailability and recovery, handler errors and replacement, navigation/window
 and iframe teardown, separate Session ownership, Permissions Policy, RP rejection,
 page abort, concurrent requests, repeated synthetic assertions, and USB fallback.
-With the creation switch absent, an installed hybrid handler must not be called
-by `navigator.credentials.create()`;
-a successful synthetic USB registration supplies the assertion credential. It checks signed
+Without an installed Session handler, a successful synthetic USB registration
+supplies the assertion credential. It checks signed
 challenge/origin/RP/UP/UV data using a fresh virtual credential. It never saves a
-QR payload, credential or private key. Result files exist only in the temporary
-directory and are deleted at completion; stdout contains case counts and exit
-status. Timeouts terminate only the runner's newly created child process group.
+QR payload, credential or private key. Result files exist only in the fresh private test directory; stdout contains
+case counts and exit status. The supervisor sends no signals. Native test
+directories are retained even on success because parent exit alone does not prove
+all browser descendants have exited. The runner prints the directory locally;
+remove it only after confirming its processes have stopped. Failed runs also
+retain their directory. Only a successful dependency-free state test is cleaned
+up automatically. Do not upload native profiles or raw test results.
 
 The separate application integration and its historical full-app tests are not
 part of this Electron repository. The source snapshot of the old debug testing
@@ -76,7 +79,7 @@ credentials. No repository secret, artifact upload or publication is used.
 The original Electron 43 baseline remains pinned; PR #1 uses the guarded base.
 Check each run's exact source SHA before applying its result to a newer head.
 
-## Recorded current-main validation
+## Historical validation before API simplification
 
 On 2026-10-06, a separate Linux testing build completed for Electron base
 `6b48d9813bd791453c7b57812a5395c693ba3e14` and Chromium 156.0.8078.3
@@ -119,26 +122,27 @@ that newly created virtual credential.
 Coverage includes cross-platform and unspecified attachment; required, preferred
 and discouraged resident key/UV; algorithm fallback and rejection; exclusion of an
 existing credential; unsupported resident key/UV and failed verification; invalid
-RP and iframe Permissions Policy; opt-in combinations, Session ownership, USB
+RP and iframe Permissions Policy; handler/no-handler controls, Session ownership, USB
 fallback and BLE availability/recovery. Platform-only tests check both the absence
 of a hybrid owner and successful independent virtual platform creation. A negative
 platform control has no platform device. Chromium may receive cable configuration
 before the platform constraint arrives; those tests assert no hybrid device or UI.
 
 Lifecycle cases cover synchronous, duplicate and stale cancel handles, handler
-false/Promise/throw, owner replacement, page abort, timeout, navigation, destroyed
+false/object/undefined/Promise returns and synchronous exceptions, owner replacement, page abort, timeout, navigation, destroyed
 windows, removed iframes and app quit with a pending creation. The shutdown case
 marks its pending synthetic request before app quit; after native shutdown the
 isolated executable verifies that discoveries and observers are gone and releases
 the mock environment. The runner requires that completion marker and a clean exit. It does not require a terminal callback during app shutdown.
+Return-value cases verify the request remains pending before explicit cancellation.
 Each invocation uses fresh temporary profiles, a run identifier and result checks.
-The default suite also reruns the unchanged authentication fixture.
+The default suite also runs the authentication fixture with the same void contract.
 
 These checks validate native integration and lifecycle behavior, not phone
 interoperability, network transport or RP enrollment. Real registration remains a
 user-controlled test, and no laptop artifact is regenerated for this follow-up.
 
-On 2026-10-06 the Linux creation build passed all three GN dependency checks,
+Before this simplification, on 2026-10-06 the Linux creation build passed all three GN dependency checks,
 the standalone state test, 26 enabled and four disabled authentication cases,
 33 enabled creation cases, three separate flag controls and pending-creation
 app shutdown with the native teardown marker. The source check also generated
@@ -154,3 +158,16 @@ production storage contract, ten in-memory and three disk-backed shutdowns.
 The unchanged upstream WebAuthn spec passed seven Linux cases, with 16 macOS-only
 cases skipped, using ordinary Electron and one worker. These results retain the
 same limitations as the authentication validation above.
+
+## API simplification validation
+
+Run the commands above on this branch. No experimental process switches are used.
+The native fixtures cover no-handler defaults, cross-Session isolation, successful
+no-return handlers for create/get, ignored return values, synchronous exceptions,
+explicit and repeated cancellation, availability and teardown. Creation has an
+additional pending-request shutdown invocation. The generated TypeScript test
+requires a void return contract and rejects a boolean acknowledgement type.
+
+The historical counts above describe earlier source heads, not this API revision.
+The separately reproduced hover-related BrowserContext shutdown failure is an
+independent issue; no fix for it is included in this API diff.

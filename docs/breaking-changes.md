@@ -14,6 +14,16 @@ This document uses the following convention to categorize breaking changes:
 * **Deprecated:** An API was marked as deprecated. The API will continue to function, but will emit a deprecation warning, and will be removed in a future release.
 * **Removed:** An API or feature was removed, and is no longer supported by Electron.
 
+## Experimental fork API migration
+
+The Linux-only phone-passkey prototype now uses
+`Session.setWebAuthnHybridHandler()` as its sole per-Session opt-in for authentication
+and creation. Its callback returns void; call `cancel()` instead of returning
+`false`. The two former experimental process switches are no longer consulted.
+This is a fork prototype change, not an upstream Electron release announcement.
+See the [migration guide](development/experimental-webauthn-hybrid.md#migration-from-the-creation-prototype)
+for ownership, asynchronous errors and creation behavior.
+
 ## Breaking API Changes (46.0)
 
 ### Behavior Changed: `utilityProcess` `child.kill()` no longer force-kills the child

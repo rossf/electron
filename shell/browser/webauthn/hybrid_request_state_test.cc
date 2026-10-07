@@ -24,7 +24,7 @@ int main() {
     HybridRequestState state;
     Expect(!state.Configure(disabled_gate != 0, disabled_gate != 1,
                             disabled_gate == 2, disabled_gate != 3),
-           "default-off/non-modal/test/null factory must not configure");
+           "no-owner/non-modal/test/null factory must not configure");
     Expect(!state.SetAvailable(true), "ineligible requests have no UI");
     Expect(!state.TakeCancel(),
            "ineligible request cannot cancel other transports");

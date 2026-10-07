@@ -21,7 +21,7 @@ constructing its request handler before action callbacks are installed.
 A separate Linux build against Chromium 156 completed with DCHECKs and
 sandboxing retained. GN checks, the portable synthetic authentication suite,
 storage contract/shutdown checks, and all seven applicable unchanged upstream
-WebAuthn cases passed. See [recorded validation](webauthn-hybrid-testing.md#recorded-current-main-validation)
+WebAuthn cases passed. See [recorded validation](webauthn-hybrid-testing.md#historical-validation-before-api-simplification)
 for exact source commits and scope. The preserved Electron 43 checkout and
 binaries were not overwritten.
 

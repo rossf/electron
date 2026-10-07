@@ -93,6 +93,7 @@
 #include "shell/common/gin_converters/time_converter.h"
 #include "shell/common/gin_converters/usb_protected_classes_converter.h"
 #include "shell/common/gin_converters/value_converter.h"
+#include "shell/common/gin_helper/callback.h"
 #include "shell/common/gin_helper/cleaned_up_at_exit.h"
 #include "shell/common/gin_helper/dictionary.h"
 #include "shell/common/gin_helper/error_thrower.h"
@@ -1014,10 +1015,27 @@ void Session::SetWebAuthnHybridHandler(v8::Local<v8::Value> val,
     args->ThrowTypeError("Session has shut down");
     return;
   }
-  HybridRequestHandler handler;
-  if (!(val->IsNull() || gin::ConvertFromV8(args->isolate(), val, &handler))) {
+  if (!val->IsNull() && !val->IsFunction()) {
     args->ThrowTypeError("Must pass null or function");
     return;
+  }
+  HybridRequestHandler handler;
+  if (val->IsFunction()) {
+    handler = base::BindRepeating(
+        [](v8::Isolate* isolate, const gin_helper::SafeV8Function& function,
+           v8::Local<v8::Value> details, v8::Local<v8::Value> cancel) {
+          gin_helper::Locker locker(isolate);
+          if (!function.IsAlive())
+            return false;
+          gin_helper::V8FunctionInvoker<void(
+              v8::Local<v8::Value>, v8::Local<v8::Value>)>::Go(isolate,
+                                                               function,
+                                                               details, cancel);
+          // Exceptions are handled by the request delegate's TryCatch. A JS
+          // return value, including a Promise, never acknowledges ownership.
+          return true;
+        },
+        args->isolate(), gin_helper::SafeV8Function(args->isolate(), val));
   }
   // Existing requests retain their own owner snapshot. Removal/replacement
   // affects only future requests; explicit per-request cancel handles remain

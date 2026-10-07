@@ -9,10 +9,10 @@
 #include "v8/include/v8-forward.h"
 namespace electron {
 // Snapshot before request setup, invoke only after native callbacks exist.
-// Return true to acknowledge ready/unavailable updates. No authentication
-// response, RP, origin, challenge or verification flags can be returned here.
+// The internal result reports callback delivery, not a JavaScript return value.
+// The public handler returns void and cannot supply a credential response, RP,
+// origin, challenge or verification flags.
 using HybridRequestHandler =
-    base::RepeatingCallback<v8::Local<v8::Value>(v8::Local<v8::Value>,
-                                                 v8::Local<v8::Value>)>;
+    base::RepeatingCallback<bool(v8::Local<v8::Value>, v8::Local<v8::Value>)>;
 }  // namespace electron
 #endif

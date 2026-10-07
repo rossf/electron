@@ -1,38 +1,66 @@
-# Experimental Linux phone-passkey creation follow-up
+# Experimental Linux phone-passkey API simplification
 
-This branch adds separately gated creation to the current-main authentication
-port at `661ae4c26316cacabddd8773df6814173e8c76ce`. That port targets Electron
+This branch follows the creation prototype at
+`202d83aedadb45dc3e3e5b0aec12cad738b15def`. Its upstream inputs remain Electron
 `6b48d9813bd791453c7b57812a5395c693ba3e14` and Chromium 156.0.8078.3
-(`03a4bd2b9182691ca7d80e876878f678029aef83`). Its Linux build and synthetic
-validation are recorded in [test reproduction](webauthn-hybrid-testing.md).
-The authentication branch and the preserved Electron 43 branch remain separate.
+(`03a4bd2b9182691ca7d80e876878f678029aef83`). The preserved Electron 43,
+authentication, creation and independent shutdown fixes retain separate branches.
 
-Authentication requires `enable-electron-webauthn-hybrid` and a Session handler.
-Creation additionally requires `enable-electron-webauthn-hybrid-creation`.
-Both switches must be set before readiness. The handler receives `requestType`
-(`get` or `create`) on availability and terminal updates so trusted main-process
-UI can distinguish signing in from creating a passkey. The renderer still uses
-standard `navigator.credentials.create()`; the handler cannot supply credentials.
+Registering `Session.setWebAuthnHybridHandler(handler)` is the sole opt-in for
+eligible Linux authentication and creation requests. The handler returns void;
+return values and Promises are ignored. Call the supplied `cancel()` to decline
+the whole ceremony. A synchronous exception or an uncallable callback cancels it.
 
-Only modal WebAuthentication requests are eligible. Conditional requests, CMTG-key
-requests and virtual-environment overrides remain excluded. Chromium retains
-origin/RP and Permissions Policy validation and attachment, resident-key,
-user-verification, algorithm, exclusion-list and response processing. Platform-only
-creation is filtered by Chromium before discovery; when its constraint arrives,
-this delegate drops its unused hybrid owner without presenting UI or cancelling
-the independent platform ceremony. No pairing or credential data is persisted.
+The request still snapshots one owner before discovery setup, invokes JavaScript
+only after native callbacks exist, and posts `ended` after teardown. Stable request
+IDs, availability updates, repeated/stale cancel protection and the actual requesting
+StoragePartition are retained. Replacing/removing the handler affects future
+requests only. No pairing or credential data is persisted.
 
-The independent storage shutdown fix remains on `fix/in-memory-storage-shutdown`.
-It is used by the combined local validation build but is outside this creation
-diff. No Chromium source file or dependency patch is added by this follow-up.
-The bounded source workflow accepts this creation branch targeting its
-current-main authentication base and checks the generated request-type field.
+Only modal WebAuthentication requests are eligible. Conditional, CMTG-key and
+virtual-environment overrides remain excluded. Chromium retains origin/RP,
+Permissions Policy, attachment, resident-key, user-verification, algorithm,
+exclusion-list and response processing. Platform-only creation neither presents
+hybrid UI nor cancels the independent platform ceremony. macOS and Windows behavior
+is unchanged; this branch adds no support for either platform.
 
-See [creation reproduction and coverage](webauthn-hybrid-testing.md#creation-follow-up)
-and [remaining review work](webauthn-hybrid-upstream-review.md).
-Real phone/BLE/caBLE interoperability, non-Linux compatibility and production
-readiness remain unvalidated. Real registration and subsequent sign-in are a
-user-controlled handoff; no real account or credential is created by these tests.
+## Migration from the creation prototype
+
+Remove `enable-electron-webauthn-hybrid` and
+`enable-electron-webauthn-hybrid-creation`; they are no longer consulted. Remove
+`return true` acknowledgements. Replace a former `return false` rejection with
+`cancel()`. Promise results do not decide request acceptance; handle asynchronous
+errors in application code and explicitly cancel when appropriate.
+
+Installing a handler now opts into both `get` and `create`. Cancelling a creation
+update declines the entire creation ceremony; it does not restore the former
+flag-controlled authentication-only mode. `setWebAuthnHybridHandler(null)` disables
+ownership for future requests in that Session.
+
+For example, this handler intentionally declines every owned request; an application
+that presents QR UI replaces the final cancellation with its trusted UI integration:
+
+```js
+const { app, session } = require('electron');
+
+app.whenReady().then(() => {
+  session.defaultSession.setWebAuthnHybridHandler((details, cancel) => {
+    if (details.state === 'ended') {
+      // Remove any UI and transient QR data for details.requestId.
+      return;
+    }
+    // Verify application policy using details.origin, relyingPartyId and frame.
+    // Handle both requestType values and ready/unavailable updates.
+    // Explicitly decline when this application cannot present trusted request UI.
+    cancel?.();
+  });
+});
+```
+
+See the [API contract](../api/session.md#sessetwebauthnhybridhandlerhandler-linux-experimental)
+and [test reproduction](webauthn-hybrid-testing.md). Native results are recorded
+there separately from bounded hosted source checks. Real phone/BLE/caBLE
+interoperability, non-Linux compilation and production readiness remain unvalidated.
 
 Source notices, upstream history and MIT licensing are retained. This work was
 created with Codex assistance. No application integration code, profiles,

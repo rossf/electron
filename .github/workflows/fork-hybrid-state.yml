@@ -2,7 +2,7 @@ name: Fork source checks
 
 on:
   pull_request:
-    branches: [main, baseline/electron-v43.7.0-fork-ci, experimental/linux-phone-passkey-main]
+    branches: [main, baseline/electron-v43.7.0-fork-ci, experimental/linux-phone-passkey-main, experimental/linux-phone-passkey-create-main]
     types: [opened, reopened, synchronize]
 
 permissions:
@@ -17,7 +17,7 @@ jobs:
     if: >-
       github.repository == 'rossf/electron' &&
       github.event.pull_request.head.repo.full_name == 'rossf/electron' &&
-      contains(fromJSON('["experimental/linux-phone-passkey-preservation","experimental/linux-phone-passkey-main","fix/in-memory-storage-shutdown","docs/fork-ci-active-status","experimental/linux-phone-passkey-create-main"]'), github.head_ref)
+      contains(fromJSON('["experimental/linux-phone-passkey-preservation","experimental/linux-phone-passkey-main","fix/in-memory-storage-shutdown","docs/fork-ci-active-status","experimental/linux-phone-passkey-create-main","experimental/linux-phone-passkey-api-main"]'), github.head_ref)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -30,7 +30,9 @@ jobs:
           path: ci-harness
           persist-credentials: false
       - name: Test patch-order and scope validation
-        run: python3 ci-harness/script/test_fork_ci.py
+        run: |
+          python3 ci-harness/script/test_fork_ci.py
+          python3 ci-harness/script/test_webauthn_hybrid_runner.py
       - name: Resolve exact source comparisons
         id: matrix
         env:
