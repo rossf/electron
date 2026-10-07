@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import { defer } from './lib/spec-helpers.ts';
 
 describe('network hints shutdown', { tags: ['serial'] }, () => {
-  for (const mode of ['no-hover', 'hover', 'preconnect']) {
+  for (const mode of ['no-hover', 'hover', 'preconnect', 'preconnect-anonymous']) {
     it(`exits cleanly after ${mode}`, async () => {
       const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'electron-network-hints-'));
       defer(() => fs.rmSync(profile, { recursive: true, force: true }));

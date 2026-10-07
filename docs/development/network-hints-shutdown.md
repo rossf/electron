@@ -26,8 +26,12 @@ ELECTRON_SPEC_KEEP_RUNNING_INSTANCES=1 \
 
 The suite runs serially because the hover case focuses a visible window. Each
 child uses a fresh temporary session and a loopback-only HTTP server. The cases
-exercise no hover, a renderer-confirmed mouse move, and a confirmed `preconnect`
-event. Each must reach its ready marker and exit with code zero and no signal.
+exercise no hover, a renderer-confirmed mouse move, and confirmed `preconnect`
+events with and without credentials. The anonymous case sets
+`crossOrigin = 'anonymous'` before inserting the link and requires the event's
+`allowCredentials` value to be `false`; both preconnect cases also verify the URL
+and originating frame. Each case must reach its ready marker and exit with code
+zero and no signal.
 The environment setting above disables the spec runner's sweep of previously
 running Electron instances; ordinary cleanup of children started by this suite
 still applies.
@@ -39,7 +43,18 @@ On Linux, the unmodified pinned Electron baseline
 existing Electron patches, passed no-hover and aborted with `SIGABRT` in both
 hover and preconnect cases. That baseline contained neither the experimental
 phone-passkey changes nor the separate in-memory storage shutdown patch. Adding
-only this native lifetime correction made all three cases pass.
+only this native lifetime correction made those original three cases pass.
+
+The extended anonymous-preconnect case also reached its ready marker and then
+aborted with `SIGABRT` on that baseline. The unchanged correction-only runtime
+and the separate combined API/storage/correction runtime each passed all four
+cases. No production change or rebuild was needed for this coverage addition.
+
+Direct delivery of a queued hint after verified frame destruction remains
+uncovered. The JavaScript fixture cannot control or acknowledge the private Mojo
+receiver's dispatch order. A deterministic test needs native queue control and
+must assert that a real Electron session receives no late `preconnect` event;
+a timing-dependent link-and-remove sequence would not establish that ordering.
 
 This validates the reproduced network-hints shutdown failure. It does not identify
 every possible cause of a shutdown abort. No credentials, sign-in, private

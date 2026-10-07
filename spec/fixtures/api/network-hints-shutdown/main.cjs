@@ -6,7 +6,7 @@ const http = require('node:http');
 const { setTimeout } = require('node:timers/promises');
 
 const mode = app.commandLine.getSwitchValue('test-mode');
-assert.ok(['no-hover', 'hover', 'preconnect'].includes(mode));
+assert.ok(['no-hover', 'hover', 'preconnect', 'preconnect-anonymous'].includes(mode));
 assert.ok(app.commandLine.getSwitchValue('user-data-dir'));
 app.enableSandbox();
 app.disableHardwareAcceleration();
@@ -59,18 +59,20 @@ app
         y: 20
       });
       assert.equal(await win.webContents.executeJavaScript('window.mouseMoved'), true);
-    } else if (mode === 'preconnect') {
+    } else if (mode === 'preconnect' || mode === 'preconnect-anonymous') {
+      const anonymous = mode === 'preconnect-anonymous';
       const received = once(isolated, 'preconnect');
       await win.webContents.executeJavaScript(`
       const link = document.createElement('link');
       link.rel = 'preconnect';
       link.href = ${JSON.stringify(origin)};
+      if (${anonymous}) link.crossOrigin = 'anonymous';
       document.head.appendChild(link);
       true;
     `);
       const [, url, allowCredentials, frame] = await received;
       assert.equal(url, origin + '/');
-      assert.equal(allowCredentials, true);
+      assert.equal(allowCredentials, !anonymous);
       assert.equal(frame, win.webContents.mainFrame);
     }
     // Let the browser receive the lazily bound interface before starting quit.
