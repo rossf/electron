@@ -5,15 +5,17 @@ and synthetic browser tests remain separate local validation steps.
 
 ## Coverage
 
-The candidate workflow runs on this fork's own authentication, storage and CI
+The workflow runs on this fork's own authentication, creation, storage and CI
 branches targeting `main`, `baseline/electron-v43.7.0-fork-ci` or the
 authentication base `experimental/linux-phone-passkey-main` or creation base
 `experimental/linux-phone-passkey-create-main`. The explicit
 head allowlist contains `experimental/linux-phone-passkey-preservation`,
 `experimental/linux-phone-passkey-main`, `fix/in-memory-storage-shutdown` and
-`docs/fork-ci-active-status`. This creation branch additionally permits
-`experimental/linux-phone-passkey-create-main`; the API simplification adds
-`experimental/linux-phone-passkey-api-main`. Events are `opened`, `reopened` and `synchronize`.
+`docs/fork-ci-active-status`, plus `experimental/linux-phone-passkey-create-main`
+and `experimental/linux-phone-passkey-api-main`. The consolidated creation head
+requires the simplified void handler contract when targeting `main`.
+Events are `opened`, `reopened` and `synchronize`; changing a PR base alone does
+not start this workflow. Update the head after retargeting to check the new comparison.
 It checks the exact head against GitHub's resolved merge base:
 
 - Electron's changed-file C++, GN, Python, JavaScript and documentation linters,
@@ -25,8 +27,10 @@ It checks the exact head against GitHub's resolved merge base:
   checks no-return handlers, a void return type and rejection of the old boolean
   acknowledgement type.
 - The standalone C++ lifetime-policy test, when present on that source head.
-- Five mocked supervisor tests for timeout behavior and profile retention, alongside
-  the nine offline patch-order/scope tests. These checks do not launch Electron.
+- Five mocked supervisor tests for timeout behavior and profile retention,
+  nine offline patch-order/scope tests and two matrix/source-gate regression
+  tests. The latter reject the old boolean contract and accept the void contract
+  for the consolidated creation head. These checks do not launch Electron.
 - Chromium patch registry consistency. When the storage shutdown patch is
   present, the complete one-file patch must apply to the source version pinned
   by that head's DEPS, after earlier patches touching the same file. The check
@@ -50,8 +54,8 @@ source commits; they are not checks attached to PR #1 or #2 and do not rerun
 merely because another branch advances. Continuous checks on those PRs require
 the reviewed CI change on their heads and a new qualifying PR event. The expanded CI candidate was merged as PR #4 at
 `265bd09e15d9baf0f07cdddd3254d02ee19a66fb`. Its exact-source checks on PR #1
-and PR #2 are active; merging does not itself rerun those checks. The creation
-branch/base additions are isolated in this follow-up.
+and PR #2 are active; merging does not itself rerun those checks. The consolidated
+implementation retains these controls while checking its complete diff against main.
 
 The guarded Electron 43 baseline is used for PR #1. The original
 `baseline/electron-v43.7.0-c440db5` reference remains pinned. Do not use that

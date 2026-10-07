@@ -1,10 +1,10 @@
-# Experimental Linux phone-passkey API simplification
+# Experimental Linux phone-passkey authentication and creation
 
-This branch follows the creation prototype at
-`202d83aedadb45dc3e3e5b0aec12cad738b15def`. Its upstream inputs remain Electron
+This implementation combines native authentication and creation with one
+per-Session UI handler. Its upstream inputs remain Electron
 `6b48d9813bd791453c7b57812a5395c693ba3e14` and Chromium 156.0.8078.3
-(`03a4bd2b9182691ca7d80e876878f678029aef83`). The preserved Electron 43,
-authentication, creation and independent shutdown fixes retain separate branches.
+(`03a4bd2b9182691ca7d80e876878f678029aef83`). The preserved Electron 43
+prototype and independent storage fix remain separate.
 
 Registering `Session.setWebAuthnHybridHandler(handler)` is the sole opt-in for
 eligible Linux authentication and creation requests. The handler returns void;
@@ -26,6 +26,8 @@ is unchanged; this branch adds no support for either platform.
 
 ## Migration from the creation prototype
 
+The earlier creation prototype is preserved at
+`202d83aedadb45dc3e3e5b0aec12cad738b15def`.
 Remove `enable-electron-webauthn-hybrid` and
 `enable-electron-webauthn-hybrid-creation`; they are no longer consulted. Remove
 `return true` acknowledgements. Replace a former `return false` rejection with

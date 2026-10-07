@@ -5,8 +5,8 @@
 Source review of [electron/electron#53733](https://github.com/electron/electron/pull/53733)
 at head `304c8efa796182a166b9d8cec8f8c82f86c5e588` found overlapping native
 QR/discovery configuration, with modal creation and assertion support on macOS
-and Linux. The authentication base retains its separate Linux API; this follow-up adds
-creation behind an additional switch.
+and Linux. This fork provides a separate Linux Session API for authentication and
+creation. Installing the handler is the sole opt-in; no process switch is required.
 Request IDs, per-request ownership, cancellation, availability transitions and
 posted terminal notification are additional lifecycle concerns. No upstream
 review, message or PR has been submitted from this fork.
@@ -32,14 +32,16 @@ every resolver or native-peer shutdown/GC path. Finite synthetic runs cannot
 establish production readiness. The standalone state test and source CI alone
 cannot establish native lifetime properties.
 
-## Separate creation follow-up
+## Consolidated authentication and creation
 
-Creation is isolated on `experimental/linux-phone-passkey-create-main`, targeting
-`experimental/linux-phone-passkey-main`. Its extra switch and `requestType` field
-leave authentication-only deployment available on the base branch. Source and
+The creation branch combines authentication, registration and the simplified void
+handler contract for one comparison against fork `main`. `requestType` distinguishes
+the two ceremonies. The earlier authentication-only branch remains a historical
+snapshot; installing a handler in this implementation opts into both operations. Source and
 synthetic tests cover attachment, resident keys, UV, algorithms, exclusions,
 platform-only requests, cancellation, timeout, navigation, destruction and app
-shutdown. See [creation coverage](webauthn-hybrid-testing.md#creation-follow-up).
+shutdown. See [creation coverage](webauthn-hybrid-testing.md#creation-follow-up)
+and the [API simplification results](webauthn-hybrid-testing.md#api-simplification-validation).
 
 Real phone transport, account enrollment and RP acceptance remain untested.
 A user-controlled test should use a disposable relying party and account, confirm
