@@ -24,6 +24,7 @@ BRANCH_KINDS = {
     "experimental/linux-phone-passkey-preservation": "authentication",
     "experimental/linux-phone-passkey-main": "authentication",
     "fix/in-memory-storage-shutdown": "storage",
+    "fix/network-hints-shutdown-main": "ci",
     "docs/fork-ci-active-status": "ci",
 }
 

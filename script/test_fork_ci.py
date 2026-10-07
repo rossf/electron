@@ -2,9 +2,12 @@
 """Regression tests for bounded patch validation without network access."""
 
 import difflib
+import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
+from unittest import mock
 
 import fork_ci
 
@@ -25,6 +28,79 @@ def patch(before, after, filename=fork_ci.STORAGE_FILE):
             f'diff --git a/{filename} b/{filename}\n'
             + ''.join(difflib.unified_diff(before.splitlines(True), after.splitlines(True),
                                           'a/' + filename, 'b/' + filename)))
+
+
+class MatrixTests(unittest.TestCase):
+    """Keep shutdown checks on one exact, owned and allowlisted PR head."""
+
+    def setUp(self):
+        # pylint: disable-next=consider-using-with
+        temporary = self.enterContext(tempfile.TemporaryDirectory())
+        self.event_path = Path(temporary) / 'event.json'
+        self.output_path = Path(temporary) / 'output.txt'
+        self.event = {
+            'repository': {'full_name': fork_ci.REPOSITORY},
+            'pull_request': {
+                'head': {'repo': {'full_name': fork_ci.REPOSITORY},
+                         'ref': 'fix/network-hints-shutdown-main', 'sha': 'a' * 40},
+                'base': {'sha': 'b' * 40},
+            },
+        }
+        self.enterContext(mock.patch.dict('os.environ', {
+            'GITHUB_EVENT_PATH': str(self.event_path),
+            'GITHUB_OUTPUT': str(self.output_path),
+        }))
+        self.github = self.enterContext(mock.patch.object(fork_ci, 'github'))
+        self.github.return_value = {'merge_base_commit': {'sha': 'c' * 40}}
+
+    def resolve(self):
+        """Resolve the synthetic event without contacting GitHub."""
+        self.event_path.write_text(json.dumps(self.event), encoding='utf-8')
+        fork_ci.matrix()
+
+    def test_shutdown_uses_only_its_exact_source_comparison(self):
+        self.resolve()
+        self.github.assert_called_once_with(
+            f'repos/{fork_ci.REPOSITORY}/compare/{"b" * 40}...{"a" * 40}')
+        value = self.output_path.read_text(encoding='utf-8').removeprefix('targets=')
+        self.assertEqual(json.loads(value), {'include': [{
+            'name': 'this-pr', 'head': 'a' * 40, 'base': 'b' * 40,
+            'merge_base': 'c' * 40, 'kind': 'ci',
+        }]})
+
+    def test_unlisted_branch_prefix_is_rejected(self):
+        self.event['pull_request']['head']['ref'] += '-unlisted'
+        with self.assertRaises(KeyError):
+            self.resolve()
+        self.github.assert_not_called()
+        self.assertFalse(self.output_path.exists())
+
+    def test_foreign_head_is_rejected(self):
+        self.event['pull_request']['head']['repo']['full_name'] = 'other/electron'
+        with self.assertRaisesRegex(ValueError, 'own PR heads'):
+            self.resolve()
+        self.github.assert_not_called()
+
+    def test_foreign_repository_is_rejected(self):
+        self.event['repository']['full_name'] = 'other/electron'
+        with self.assertRaisesRegex(ValueError, 'own PR heads'):
+            self.resolve()
+        self.github.assert_not_called()
+
+    def test_nonimmutable_head_is_rejected(self):
+        self.event['pull_request']['head']['sha'] = 'main'
+        with self.assertRaisesRegex(ValueError, 'complete Git SHA'):
+            self.resolve()
+        self.github.assert_not_called()
+
+    def test_workflow_and_classifier_allowlists_match(self):
+        workflow = (Path(__file__).resolve().parents[1]
+                    / '.github/workflows/fork-hybrid-state.yml').read_text(encoding='utf-8')
+        allowed = re.search(r"contains\(fromJSON\('([^']+)'\), github\.head_ref\)", workflow)
+        self.assertIsNotNone(allowed)
+        branches = json.loads(allowed[1])
+        self.assertEqual(len(branches), len(set(branches)))
+        self.assertEqual(set(branches), set(fork_ci.BRANCH_KINDS))
 
 
 class StoragePatchTests(unittest.TestCase):
