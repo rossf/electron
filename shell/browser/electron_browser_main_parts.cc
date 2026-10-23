@@ -666,8 +666,7 @@ void ElectronBrowserMainParts::PostCreateMainMessageLoop() {
   ui::OzonePlatform::GetInstance()->PostCreateMainMessageLoop(
       base::BindOnce(&ExitOnSessionLoss),
       content::GetUIThreadTaskRunner({content::BrowserTaskType::kUserInput}));
-  dbus_thread_linux::SetDisconnectedCallback(
-      base::BindRepeating(&ExitOnSessionLoss));
+  dbus_thread_linux::Initialize(base::BindRepeating(&ExitOnSessionLoss));
 
   if (!bluez::BluezDBusManager::IsInitialized())
     bluez::DBusBluezManagerWrapperLinux::Initialize();
@@ -740,6 +739,7 @@ void ElectronBrowserMainParts::PostMainMessageLoopRun() {
 
   fake_browser_process_->PostMainMessageLoopRun();
   content::DevToolsAgentHost::StopRemoteDebuggingPipeHandler();
+  content::DevToolsAgentHost::StopRemoteDebuggingServer();
 
 #if BUILDFLAG(IS_LINUX)
   ui::OzonePlatform::GetInstance()->PostMainMessageLoopRun();
