@@ -21,7 +21,6 @@
 #include "shell/common/gin_helper/object_template_builder.h"
 #include "shell/common/node_includes.h"
 #include "shell/common/options_switches.h"
-#include "ui/gl/gpu_switching_manager.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/widget/widget.h"
 
@@ -139,7 +138,7 @@ void BrowserWindow::OnSetContentBounds(const gfx::Rect& rect) {
 void BrowserWindow::OnActivateContents() {
   // Hide the auto-hide menu when webContents is focused.
 #if !BUILDFLAG(IS_MAC)
-  if (IsMenuBarAutoHide() && IsMenuBarVisible())
+  if (window()->IsMenuBarAutoHide() && window()->IsMenuBarVisible())
     window()->SetMenuBarVisibility(false);
 #endif
 }
@@ -343,7 +342,7 @@ void BrowserWindow::Show() {
 
 void BrowserWindow::ShowInactive() {
   // This method doesn't make sense for modal window.
-  if (IsModal())
+  if (window()->is_modal())
     return;
   if (auto* api_web_contents = GetLiveWebContents()) {
     api_web_contents->web_contents()->WasShown();
@@ -374,6 +373,11 @@ gin_helper::WrappableBase* BrowserWindow::New(gin_helper::ErrorThrower thrower,
   if (!IsWindowNameValid(options, &error_message)) {
     // Window name is already in use throw an error and do not create the window
     thrower.ThrowError(error_message);
+    return nullptr;
+  }
+  if (!IsAppShimValid(options, &error_message) ||
+      !IsParentValid(options, &error_message)) {
+    thrower.ThrowTypeError(error_message);
     return nullptr;
   }
 
