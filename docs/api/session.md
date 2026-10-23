@@ -1020,6 +1020,68 @@ win.webContents.session.setCertificateVerifyProc((request, callback) => {
 
 > **NOTE:** The result of this procedure is cached by the network service.
 
+#### `ses.setWebAuthnHybridHandler(handler)` _Linux_ _Experimental_
+
+Experimental Linux prototype; not a production API. Registering a handler opts
+this Session into native hybrid discovery for eligible authentication and creation
+requests. No process switch is required. Sessions without a handler keep their
+existing native behavior.
+
+* `handler` Function | null
+  * `details` Object
+    * `requestId` string - Unique identifier for this native ceremony.
+    * `requestType` string - `get` for authentication or `create` for registration,
+      including the terminal `ended` update. Use distinct UI wording for each.
+    * `state` string - `ready`, `unavailable`, or `ended`.
+    * `origin` string (optional) - Chromium-validated calling origin, except in `ended`.
+    * `relyingPartyId` string (optional) - Chromium-validated RP ID, except in `ended`.
+    * `frame` WebFrameMain (optional) - Initiating frame, except in `ended`.
+    * `qrCode` string (optional) - Native transient QR payload for `ready`; empty for
+      `unavailable`; absent for `ended`. Never log or persist it.
+  * `cancel` Function | undefined - Explicitly cancels the whole native request,
+    including alternative transports. Remains live while unavailable; duplicate
+    or stale calls are inert. Absent for `ended`.
+
+The handler returns no value. Return values, including Promises, are ignored;
+use `cancel()` to decline the whole ceremony. Synchronous exceptions or a callback
+that can no longer be invoked cancel the request. Returned Promises are not awaited;
+handle asynchronous errors in the application and call the request's cancel
+function when appropriate. Exceptions during terminal cleanup are contained.
+
+Calling this setter establishes trusted main-process UI ownership. The native request
+snapshots the handler without running JavaScript during discovery configuration.
+Removing or replacing the session handler affects future requests only; existing
+requests keep their original owner and cancel handle. To withdraw an existing
+request, invoke its cancel function or abort that WebAuthn request. Removing a
+JavaScript callback is not transport cancellation.
+
+The handler runs only after native action callbacks exist. Render QR data only
+for `ready`, in trusted isolated UI showing the supplied RP and origin. For
+`unavailable`, hide the QR while retaining cancellation and allowing other native
+transports to continue. This status does not revoke a previously shown QR, stop
+native discovery, or end the WebAuthn request. BLE recovery may produce another
+`ready` update for the same request. No adapter power or permission change is
+performed by this prototype.
+
+`ended` is posted after native request teardown/observation stop, never from the
+middle of native destruction. Clear the request UI and QR data. This is not proof
+that the RP accepted an assertion. Shutdown may prevent delivery, so close UI on
+session/app shutdown too.
+
+Modal `navigator.credentials.get()` and `navigator.credentials.create()` are
+eligible. Conditional requests,
+CMTG-key requests and virtual test overrides are excluded. Chromium filters
+platform-only creation before discovery; those requests do not present hybrid
+UI or get cancelled through this owner.
+
+Chromium retains origin/RP, Permissions Policy, challenge, authenticator attachment,
+resident-key, user-verification, algorithm and exclusion-list processing. The
+handler accepts no credential responses and cannot relax those requirements.
+Use `requestType` to distinguish "Create a passkey" from "Sign in with a passkey";
+`ended` does not prove that the RP accepted either operation. No phone pairing
+is persisted. Existing `select-webauthn-account` handles account selection;
+never silently choose a real credential.
+
 #### `ses.setPermissionRequestHandler(handler)`
 
 * `handler` Function | null

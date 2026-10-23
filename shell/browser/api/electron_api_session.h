@@ -20,6 +20,8 @@
 #include "services/network/public/mojom/ssl_config.mojom-forward.h"
 #include "shell/browser/event_emitter_mixin.h"
 #include "shell/browser/microtasks_runner.h"
+#include "shell/browser/native_peer.h"
+#include "shell/browser/webauthn/hybrid_request_handler.h"
 #include "shell/common/gin_helper/constructible.h"
 #include "shell/common/gin_helper/self_keep_alive.h"
 
@@ -106,6 +108,9 @@ class Session final : public gin::Wrappable<Session>,
   const char* GetHumanReadableName() const override;
 
   void OnBeforeMicrotasksRunnerDispose();
+
+  HybridRequestHandler GetWebAuthnHybridHandler() const;
+  void SetWebAuthnHybridHandler(v8::Local<v8::Value> val, gin::Arguments* args);
 
   // Methods.
   void Dispose();
@@ -203,6 +208,9 @@ class Session final : public gin::Wrappable<Session>,
 #endif
 
  private:
+  class HybridOwner;
+  // The native peer releases independent V8 callback roots outside GC sweeping.
+  std::unique_ptr<HybridOwner, NativePeerBase::Deleter> hybrid_owner_;
   void SetDisplayMediaRequestHandler(v8::Isolate* isolate,
                                      v8::Local<v8::Value> val);
 

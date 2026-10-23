@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Regression tests for bounded patch validation without network access."""
+"""Regression tests for bounded source validation without network access."""
 
+import contextlib
 import difflib
+import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import fork_ci
 
@@ -113,6 +117,58 @@ class StoragePatchTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fork_ci.apply_storage_patch(self.root, self.tree)
         self.assertEqual(self.source.read_text(), BASE)
+
+
+class ConsolidatedPasskeyTests(unittest.TestCase):
+    """Run PR matrix selection and its source gate with synthetic fork inputs."""
+
+    def verify_contract(self, contract):
+        """Resolve PR #5's main comparison and run the selected verification."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            docs = root / 'docs/api/session.md'
+            docs.parent.mkdir(parents=True)
+            docs.write_text('ses.setWebAuthnHybridHandler(handler)\n'
+                            '* `requestType` string\n' + contract)
+            for name in ('script/run-webauthn-hybrid-tests.py',
+                         'spec/fixtures/api/webauthn-hybrid/creation.cjs'):
+                fixture = root / name
+                fixture.parent.mkdir(parents=True)
+                fixture.touch()
+            head, base, merge_base = '1' * 40, '2' * 40, '3' * 40
+            event = root / 'event.json'
+            event.write_text(json.dumps({
+                'repository': {'full_name': fork_ci.REPOSITORY},
+                'pull_request': {
+                    'number': 5,
+                    'head': {'repo': {'full_name': fork_ci.REPOSITORY},
+                             'ref': 'experimental/linux-phone-passkey-create-main',
+                             'sha': head},
+                    'base': {'ref': 'main', 'sha': base},
+                },
+            }))
+            output = root / 'output'
+            with (mock.patch.dict(fork_ci.os.environ, {
+                    'GITHUB_EVENT_PATH': str(event), 'GITHUB_OUTPUT': str(output)}),
+                  mock.patch.object(fork_ci, 'github', return_value={
+                      'merge_base_commit': {'sha': merge_base}}) as github,
+                  contextlib.redirect_stdout(io.StringIO())):
+                fork_ci.matrix()
+            github.assert_called_once_with(
+                f'repos/{fork_ci.REPOSITORY}/compare/{base}...{head}')
+            target, = json.loads(output.read_text().removeprefix('targets='))['include']
+            self.assertEqual((target['head'], target['base'], target['merge_base']),
+                             (head, base, merge_base))
+            with mock.patch('sys.argv', ['fork_ci.py', 'verify', '--source-root',
+                                        str(root), '--source-kind', target['kind']]):
+                fork_ci.main()
+
+    def test_consolidated_pr_rejects_boolean_contract(self):
+        with self.assertRaisesRegex(ValueError, 'Expected void handler contract'):
+            self.verify_contract('The handler returns a boolean.\n')
+
+    def test_consolidated_pr_accepts_void_contract(self):
+        self.verify_contract('The handler returns no value.\n')
 
 
 if __name__ == '__main__':
